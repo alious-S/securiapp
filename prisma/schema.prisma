@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Agent {
+  id        String   @id @default(uuid())
+  nom       String
+  prenom    String
+  matricule String   @unique
+  agence    String
+  photoUrl  String?
+  createdAt DateTime @default(now())
+
+  cards Card[]
+}
+
+model Card {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  statut    String    @default("actif")
+  expireAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  agentId String
+  agent   Agent  @relation(fields: [agentId], references: [id])
+
+  logs VerificationLog[]
+}
+
+model VerificationLog {
+  id        String   @id @default(uuid())
+  resultat  String
+  scannedAt DateTime @default(now())
+  ipAddress String?
+
+  cardId String?
+  card   Card?   @relation(fields: [cardId], references: [id])
+}
