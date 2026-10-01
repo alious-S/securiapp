@@ -14,7 +14,8 @@ model Agent {
   prenom    String
   matricule String   @unique
   agence    String
-  photoUrl  String?
+  photoUrl  String?  @db.Text
+  actif     Boolean  @default(true)
   createdAt DateTime @default(now())
 
   cards Card[]
@@ -23,9 +24,10 @@ model Agent {
 model Card {
   id        String    @id @default(uuid())
   token     String    @unique
-  statut    String    @default("actif")
+  statut    String    @default("actif") // "actif" | "desactive" | "revoque"
   expireAt  DateTime?
   createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   agentId String
   agent   Agent  @relation(fields: [agentId], references: [id])
@@ -35,7 +37,7 @@ model Card {
 
 model VerificationLog {
   id        String   @id @default(uuid())
-  resultat  String
+  resultat  String   // "valide" | "invalide"
   scannedAt DateTime @default(now())
   ipAddress String?
 
