@@ -163,15 +163,26 @@ export default function AdminPage() {
                       {agent.matricule} — {agent.agence}
                     </p>
                   </div>
-                  <span
-                    className={`px-2 py-1 rounded text-xs ${
-                      agent.cards[0]?.statut === "actif"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {agent.cards[0]?.statut}
-                  </span>
+                 <div className="flex items-center gap-2">
+    <span
+    className={`px-2 py-1 rounded text-xs ${
+      agent.cards[0]?.statut === "actif"
+        ? "bg-green-100 text-green-700"
+        : "bg-red-100 text-red-700"
+    }`}
+  >
+    {agent.cards[0]?.statut}
+  </span>
+  {agent.cards[0]?.token && (
+    <a
+      href={`/carte/${agent.cards[0].token}`}
+      target="_blank"
+      className="text-blue-600 hover:underline text-xs whitespace-nowrap"
+    >
+      🖨️ Imprimer un nouveau agents
+    </a>
+  )}
+</div>
                 </div>
               ))}
             </div>
