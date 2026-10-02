@@ -40,7 +40,8 @@ export default function ParametresPage() {
     "w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500";
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] p-4 md:p-8 max-w-xl">
+    <div className="min-h-screen bg-[#0b0f19] w-full p-4 md:p-8">
+  <div className="max-w-xl mx-auto">
       <h1 className="text-2xl font-bold text-white mb-6">Paramètres</h1>
 
       <form
@@ -97,6 +98,7 @@ export default function ParametresPage() {
         </p>
         <p className="text-xs text-slate-600 mt-2">Version démo — 2026</p>
       </div>
+    </div>
     </div>
   );
 }

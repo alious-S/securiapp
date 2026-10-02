@@ -1,19 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import QRCode from "qrcode";
 
-type Agent = {
-  id: string;
-  nom: string;
-  prenom: string;
-  matricule: string;
-  agence: string;
-  cards: { token: string; statut: string }[];
-};
-
 export default function GenerateurPage() {
-  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [lastToken, setLastToken] = useState<string | null>(null);
@@ -27,15 +17,6 @@ export default function GenerateurPage() {
     prenom: "",
     agence: "",
   });
-
-  async function loadAgents() {
-    const res = await fetch("/api/agents");
-    setAgents(await res.json());
-  }
-
-  useEffect(() => {
-    loadAgents();
-  }, []);
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -72,7 +53,6 @@ export default function GenerateurPage() {
 
       setForm({ nom: "", prenom: "", agence: "" });
       setPhotoPreview(null);
-      loadAgents();
     } catch (err) {
       alert(
         err instanceof Error
@@ -88,12 +68,12 @@ export default function GenerateurPage() {
     "w-full bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg px-3 py-2 outline-none focus:border-indigo-500";
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] p-4 md:p-8">
-      <h1 className="text-2xl font-bold text-white mb-6">
-        Générateur de carte
-      </h1>
+    <div className="min-h-screen bg-[#0b0f19] w-full p-4 md:p-8">
+      <div className="max-w-xl mx-auto">
+        <h1 className="text-2xl font-bold text-white mb-6">
+          Générateur de carte
+        </h1>
 
-      <div className="grid md:grid-cols-2 gap-6">
         <div className="bg-slate-900 rounded-2xl border-l-4 border-indigo-500 p-6">
           <h2 className="font-semibold text-white mb-4">
             Créer un nouvel agent
@@ -209,48 +189,12 @@ export default function GenerateurPage() {
           )}
         </div>
 
-        <div className="bg-slate-900 rounded-2xl border-l-4 border-cyan-500 p-6">
-          <h2 className="font-semibold text-white mb-4">
-            Agents enregistrés ({agents.length})
-          </h2>
-          <div className="space-y-3 max-h-125 overflow-y-auto">
-            {agents.map((agent) => (
-              <div
-                key={agent.id}
-                className="border border-slate-800 rounded-lg p-3 text-sm flex justify-between items-center"
-              >
-                <div>
-                  <p className="font-medium text-white">
-                    {agent.prenom} {agent.nom}
-                  </p>
-                  <p className="text-slate-500">
-                    {agent.matricule} — {agent.agence}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs ${
-                      agent.cards[0]?.statut === "actif"
-                        ? "bg-green-500/20 text-green-400"
-                        : "bg-red-500/20 text-red-400"
-                    }`}
-                  >
-                    {agent.cards[0]?.statut}
-                  </span>
-                  {agent.cards[0]?.token && (
-                    <a
-                      href={`/carte/${agent.cards[0].token}`}
-                      target="_blank"
-                      className="text-indigo-400 hover:text-indigo-300 text-xs whitespace-nowrap"
-                    >
-                      🖨️ Imprimer
-                    </a>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <a
+          href="/admin/agents"
+          className="block text-center mt-4 text-sm text-indigo-400 hover:text-indigo-300"
+        >
+          Voir tous les agents enregistrés →
+        </a>
       </div>
     </div>
   );

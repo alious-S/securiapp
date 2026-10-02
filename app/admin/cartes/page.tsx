@@ -48,8 +48,8 @@ export default function CartesPage() {
     return () => clearTimeout(t);
   }, [loadCards]);
 
-  return (
-    <div className="min-h-screen bg-[#0b0f19] p-4 md:p-8">
+  return (<div className="min-h-screen bg-[#0b0f19] w-full p-4 md:p-8">
+  <div className="max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold text-white mb-6">
         Gestion des cartes
       </h1>
@@ -143,6 +143,7 @@ export default function CartesPage() {
           </table>
         )}
       </div>
+       </div>
     </div>
   );
 }
