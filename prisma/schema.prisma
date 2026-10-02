@@ -44,3 +44,8 @@ model VerificationLog {
   cardId String?
   card   Card?   @relation(fields: [cardId], references: [id])
 }
+model Settings {
+  id               String  @id @default("main")
+  nomOrganisation  String  @default("SecuriApp")
+  dureeValiditeJours Int   @default(365)
+}
