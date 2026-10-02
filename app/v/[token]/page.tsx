@@ -13,7 +13,8 @@ export default async function VerifyPage({
   });
 
   const estExpiree = card?.expireAt && card.expireAt < new Date();
-  const estValide = card && card.statut === "actif" && !estExpiree;
+const estValide =
+  card && card.statut === "actif" && !estExpiree && card.agent.actif;
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -52,11 +53,13 @@ export default async function VerifyPage({
             </div>
             <div className="p-6 text-center">
               <p className="text-gray-700">
-                {!card
-                  ? "Cette carte n'existe pas"
-                  : card.statut === "revoque"
-                  ? "Cette carte a été révoquée"
-                  : "Cette carte a expiré"}
+              {!card
+  ? "Cette carte n'existe pas"
+  : card.statut === "revoque"
+  ? "Cette carte a été révoquée"
+  : !card.agent.actif
+  ? "Cet agent n'est plus en service"
+  : "Cette carte a expiré"}
               </p>
             </div>
           </>

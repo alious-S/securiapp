@@ -1,0 +1,11 @@
+ALTER TABLE "Agent"
+ADD COLUMN "actif" BOOLEAN NOT NULL DEFAULT true;
+
+ALTER TABLE "Card"
+ADD COLUMN "updatedAt" TIMESTAMP(3);
+
+UPDATE "Card"
+SET "updatedAt" = "createdAt";
+
+ALTER TABLE "Card"
+ALTER COLUMN "updatedAt" SET NOT NULL;
