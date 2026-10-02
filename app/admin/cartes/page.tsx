@@ -17,10 +17,10 @@ type Card = {
   };
 };
 
-const statutColors: Record<string, string> = {
-  actif: "bg-green-100 text-green-700",
-  desactive: "bg-gray-200 text-gray-700",
-  revoque: "bg-red-100 text-red-700",
+const statutStyles: Record<string, string> = {
+  actif: "bg-green-500/20 text-green-400",
+  desactive: "bg-slate-700 text-slate-300",
+  revoque: "bg-red-500/20 text-red-400",
 };
 
 function estExpiree(card: Card) {
@@ -38,40 +38,39 @@ export default function CartesPage() {
     const params = new URLSearchParams();
     if (statutFiltre !== "tous") params.set("statut", statutFiltre);
     if (recherche) params.set("q", recherche);
-
     const res = await fetch(`/api/cards?${params.toString()}`);
-    const data = await res.json();
-    setCards(data);
+    setCards(await res.json());
     setLoading(false);
   }, [statutFiltre, recherche]);
 
   useEffect(() => {
-    const timeout = setTimeout(loadCards, 300);
-    return () => clearTimeout(timeout);
+    const t = setTimeout(loadCards, 300);
+    return () => clearTimeout(t);
   }, [loadCards]);
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-6">Gestion des cartes</h1>
+    <div className="min-h-screen bg-[#0b0f19] p-4 md:p-8">
+      <h1 className="text-2xl font-bold text-white mb-6">
+        Gestion des cartes
+      </h1>
 
-      {/* Filtres */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-3 items-center">
+      <div className="bg-slate-900 rounded-2xl border-l-4 border-indigo-500 p-4 mb-6 flex flex-wrap gap-3 items-center">
         <input
           type="text"
           placeholder="Rechercher par nom, prénom, matricule..."
           value={recherche}
           onChange={(e) => setRecherche(e.target.value)}
-          className="border rounded px-3 py-2 flex-1 min-w-[250px]"
+          className="bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg px-3 py-2 flex-1 min-w-[250px] outline-none focus:border-indigo-500"
         />
         <div className="flex gap-2">
           {["tous", "actif", "desactive", "revoque"].map((s) => (
             <button
               key={s}
               onClick={() => setStatutFiltre(s)}
-              className={`px-3 py-1.5 rounded text-sm capitalize ${
+              className={`px-3 py-1.5 rounded-lg text-sm capitalize ${
                 statutFiltre === s
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-white text-slate-900 font-semibold"
+                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
               }`}
             >
               {s === "tous" ? "Tous" : s}
@@ -80,17 +79,16 @@ export default function CartesPage() {
         </div>
       </div>
 
-      {/* Liste */}
-     <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
+      <div className="bg-slate-900 rounded-2xl border-l-4 border-cyan-500 overflow-hidden overflow-x-auto">
         {loading ? (
-          <p className="p-6 text-center text-gray-500">Chargement...</p>
+          <p className="p-6 text-center text-slate-400">Chargement...</p>
         ) : cards.length === 0 ? (
-          <p className="p-6 text-center text-gray-500">
+          <p className="p-6 text-center text-slate-400">
             Aucune carte trouvée.
           </p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600 text-left">
+            <thead className="text-slate-400 text-left border-b border-slate-800">
               <tr>
                 <th className="px-4 py-3">Agent</th>
                 <th className="px-4 py-3">Matricule</th>
@@ -102,28 +100,31 @@ export default function CartesPage() {
             </thead>
             <tbody>
               {cards.map((card) => (
-                <tr key={card.id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">
+                <tr
+                  key={card.id}
+                  className="border-t border-slate-800 hover:bg-slate-800/50"
+                >
+                  <td className="px-4 py-3 font-medium text-white">
                     {card.agent.prenom} {card.agent.nom}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3 text-slate-400">
                     {card.agent.matricule}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3 text-slate-400">
                     {card.agent.agence}
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`px-2 py-1 rounded text-xs ${
+                      className={`px-2 py-1 rounded-full text-xs ${
                         estExpiree(card)
-                          ? "bg-orange-100 text-orange-700"
-                          : statutColors[card.statut]
+                          ? "bg-orange-500/20 text-orange-400"
+                          : statutStyles[card.statut]
                       }`}
                     >
                       {estExpiree(card) ? "expirée" : card.statut}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3 text-slate-400">
                     {card.expireAt
                       ? new Date(card.expireAt).toLocaleDateString("fr-FR")
                       : "Sans expiration"}
@@ -131,7 +132,7 @@ export default function CartesPage() {
                   <td className="px-4 py-3 text-right">
                     <Link
                       href={`/admin/cartes/${card.id}`}
-                      className="text-blue-600 hover:underline"
+                      className="text-indigo-400 hover:text-indigo-300"
                     >
                       Voir détails →
                     </Link>

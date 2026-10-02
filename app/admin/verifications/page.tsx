@@ -8,11 +8,7 @@ type Log = {
   scannedAt: string;
   ipAddress: string | null;
   card: {
-    agent: {
-      nom: string;
-      prenom: string;
-      matricule: string;
-    };
+    agent: { nom: string; prenom: string; matricule: string };
   } | null;
 };
 
@@ -26,8 +22,7 @@ export default function VerificationsPage() {
     setLoading(true);
     const params = new URLSearchParams({ periode, resultat });
     const res = await fetch(`/api/verifications?${params.toString()}`);
-    const data = await res.json();
-    setLogs(data);
+    setLogs(await res.json());
     setLoading(false);
   }, [periode, resultat]);
 
@@ -36,10 +31,10 @@ export default function VerificationsPage() {
   }, [loadLogs]);
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-6">Vérifications</h1>
+    <div className="min-h-screen bg-[#0b0f19] p-4 md:p-8">
+      <h1 className="text-2xl font-bold text-white mb-6">Vérifications</h1>
 
-      <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4 items-center">
+      <div className="bg-slate-900 rounded-2xl border-l-4 border-indigo-500 p-4 mb-6 flex flex-wrap gap-4 items-center">
         <div className="flex gap-2">
           {[
             { value: "tous", label: "Tout" },
@@ -50,17 +45,17 @@ export default function VerificationsPage() {
             <button
               key={p.value}
               onClick={() => setPeriode(p.value)}
-              className={`px-3 py-1.5 rounded text-sm ${
+              className={`px-3 py-1.5 rounded-lg text-sm ${
                 periode === p.value
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-white text-slate-900 font-semibold"
+                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
               }`}
             >
               {p.label}
             </button>
           ))}
         </div>
-        <div className="flex gap-2 border-l pl-4">
+        <div className="flex gap-2 border-l border-slate-700 pl-4">
           {[
             { value: "tous", label: "Tous résultats" },
             { value: "valide", label: "Valides" },
@@ -69,10 +64,10 @@ export default function VerificationsPage() {
             <button
               key={r.value}
               onClick={() => setResultat(r.value)}
-              className={`px-3 py-1.5 rounded text-sm ${
+              className={`px-3 py-1.5 rounded-lg text-sm ${
                 resultat === r.value
-                  ? "bg-slate-800 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
               }`}
             >
               {r.label}
@@ -81,16 +76,16 @@ export default function VerificationsPage() {
         </div>
       </div>
 
-  <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
+      <div className="bg-slate-900 rounded-2xl border-l-4 border-cyan-500 overflow-hidden overflow-x-auto">
         {loading ? (
-          <p className="p-6 text-center text-gray-500">Chargement...</p>
+          <p className="p-6 text-center text-slate-400">Chargement...</p>
         ) : logs.length === 0 ? (
-          <p className="p-6 text-center text-gray-500">
+          <p className="p-6 text-center text-slate-400">
             Aucune vérification trouvée pour cette période.
           </p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600 text-left">
+            <thead className="text-slate-400 text-left border-b border-slate-800">
               <tr>
                 <th className="px-4 py-3">Date / Heure</th>
                 <th className="px-4 py-3">Agent</th>
@@ -100,27 +95,30 @@ export default function VerificationsPage() {
             </thead>
             <tbody>
               {logs.map((log) => (
-                <tr key={log.id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-600">
+                <tr
+                  key={log.id}
+                  className="border-t border-slate-800 hover:bg-slate-800/50"
+                >
+                  <td className="px-4 py-3 text-slate-400">
                     {new Date(log.scannedAt).toLocaleString("fr-FR")}
                   </td>
-                  <td className="px-4 py-3 font-medium">
+                  <td className="px-4 py-3 font-medium text-white">
                     {log.card
                       ? `${log.card.agent.prenom} ${log.card.agent.nom} (${log.card.agent.matricule})`
                       : "— Carte inconnue —"}
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`px-2 py-1 rounded text-xs ${
+                      className={`px-2 py-1 rounded-full text-xs ${
                         log.resultat === "valide"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
+                          ? "bg-green-500/20 text-green-400"
+                          : "bg-red-500/20 text-red-400"
                       }`}
                     >
                       {log.resultat}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">
+                  <td className="px-4 py-3 text-slate-500 text-xs">
                     {log.ipAddress || "—"}
                   </td>
                 </tr>

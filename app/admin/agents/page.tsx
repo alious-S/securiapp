@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 
 type Agent = {
   id: string;
@@ -23,8 +22,7 @@ export default function AgentsPage() {
   const loadAgents = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/agents");
-    const data: Agent[] = await res.json();
-    setAgents(data);
+    setAgents(await res.json());
     setLoading(false);
   }, []);
 
@@ -55,26 +53,28 @@ export default function AgentsPage() {
   });
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-6">Gestion des agents</h1>
+    <div className="min-h-screen bg-[#0b0f19] p-4 md:p-8">
+      <h1 className="text-2xl font-bold text-white mb-6">
+        Gestion des agents
+      </h1>
 
-      <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-3 items-center">
+      <div className="bg-slate-900 rounded-2xl border-l-4 border-indigo-500 p-4 mb-6 flex flex-wrap gap-3 items-center">
         <input
           type="text"
           placeholder="Rechercher un agent..."
           value={recherche}
           onChange={(e) => setRecherche(e.target.value)}
-          className="border rounded px-3 py-2 flex-1 min-w-[250px]"
+          className="bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg px-3 py-2 flex-1 min-w-[250px] outline-none focus:border-indigo-500"
         />
         <div className="flex gap-2">
           {["tous", "actif", "inactif"].map((f) => (
             <button
               key={f}
               onClick={() => setFiltreActif(f)}
-              className={`px-3 py-1.5 rounded text-sm capitalize ${
+              className={`px-3 py-1.5 rounded-lg text-sm capitalize ${
                 filtreActif === f
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-white text-slate-900 font-semibold"
+                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
               }`}
             >
               {f === "tous" ? "Tous" : f}
@@ -83,14 +83,16 @@ export default function AgentsPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
+      <div className="bg-slate-900 rounded-2xl border-l-4 border-cyan-500 overflow-hidden overflow-x-auto">
         {loading ? (
-          <p className="p-6 text-center text-gray-500">Chargement...</p>
+          <p className="p-6 text-center text-slate-400">Chargement...</p>
         ) : agentsFiltres.length === 0 ? (
-          <p className="p-6 text-center text-gray-500">Aucun agent trouvé.</p>
+          <p className="p-6 text-center text-slate-400">
+            Aucun agent trouvé.
+          </p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600 text-left">
+            <thead className="text-slate-400 text-left border-b border-slate-800">
               <tr>
                 <th className="px-4 py-3">Agent</th>
                 <th className="px-4 py-3">Matricule</th>
@@ -101,8 +103,11 @@ export default function AgentsPage() {
             </thead>
             <tbody>
               {agentsFiltres.map((agent) => (
-                <tr key={agent.id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium flex items-center gap-2">
+                <tr
+                  key={agent.id}
+                  className="border-t border-slate-800 hover:bg-slate-800/50"
+                >
+                  <td className="px-4 py-3 font-medium text-white flex items-center gap-2">
                     {agent.photoUrl ? (
                       <img
                         src={agent.photoUrl}
@@ -110,43 +115,37 @@ export default function AgentsPage() {
                         className="w-8 h-8 rounded-full object-cover"
                       />
                     ) : (
-                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
+                      <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs font-bold">
                         {agent.prenom[0]}
                         {agent.nom[0]}
                       </div>
                     )}
                     {agent.prenom} {agent.nom}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3 text-slate-400">
                     {agent.matricule}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{agent.agence}</td>
+                  <td className="px-4 py-3 text-slate-400">
+                    {agent.agence}
+                  </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`px-2 py-1 rounded text-xs ${
+                      className={`px-2 py-1 rounded-full text-xs ${
                         agent.actif
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-200 text-gray-600"
+                          ? "bg-green-500/20 text-green-400"
+                          : "bg-slate-700 text-slate-400"
                       }`}
                     >
                       {agent.actif ? "actif" : "inactif"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right flex items-center justify-end gap-3">
+                  <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => toggleActif(agent)}
-                      className="text-sm text-blue-600 hover:underline"
+                      className="text-sm text-indigo-400 hover:text-indigo-300"
                     >
                       {agent.actif ? "Désactiver" : "Activer"}
                     </button>
-                    {agent.cards[0] && (
-                      <Link
-                        href={`/admin/cartes`}
-                        className="text-sm text-gray-500 hover:underline"
-                      >
-                        Voir carte
-                      </Link>
-                    )}
                   </td>
                 </tr>
               ))}
