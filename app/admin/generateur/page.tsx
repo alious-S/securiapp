@@ -17,6 +17,7 @@ export default function GenerateurPage() {
   const [loading, setLoading] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [lastToken, setLastToken] = useState<string | null>(null);
+  const [lastMatricule, setLastMatricule] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -24,7 +25,6 @@ export default function GenerateurPage() {
   const [form, setForm] = useState({
     nom: "",
     prenom: "",
-    matricule: "",
     agence: "",
   });
 
@@ -65,11 +65,12 @@ export default function GenerateurPage() {
       const agent = await res.json();
       const token = agent.cards[0].token;
       setLastToken(token);
+      setLastMatricule(agent.matricule);
 
       const verifyUrl = `${window.location.origin}/v/${token}`;
       setQrCodeUrl(await QRCode.toDataURL(verifyUrl, { width: 300 }));
 
-      setForm({ nom: "", prenom: "", matricule: "", agence: "" });
+      setForm({ nom: "", prenom: "", agence: "" });
       setPhotoPreview(null);
       loadAgents();
     } catch (err) {
@@ -161,22 +162,17 @@ export default function GenerateurPage() {
             />
             <input
               type="text"
-              placeholder="Matricule"
-              required
-              value={form.matricule}
-              onChange={(e) =>
-                setForm({ ...form, matricule: e.target.value })
-              }
-              className={inputClass}
-            />
-            <input
-              type="text"
               placeholder="Agence"
               required
               value={form.agence}
               onChange={(e) => setForm({ ...form, agence: e.target.value })}
               className={inputClass}
             />
+
+            <p className="text-xs text-slate-500">
+              🔢 Le matricule sera généré automatiquement.
+            </p>
+
             <button
               type="submit"
               disabled={loading}
@@ -188,6 +184,12 @@ export default function GenerateurPage() {
 
           {qrCodeUrl && (
             <div className="mt-6 text-center border-t border-slate-800 pt-6">
+              <p className="text-sm text-slate-400 mb-1">
+                Matricule généré :{" "}
+                <span className="text-white font-semibold">
+                  {lastMatricule}
+                </span>
+              </p>
               <p className="text-sm text-slate-400 mb-2">
                 QR code de la carte générée :
               </p>
