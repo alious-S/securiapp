@@ -81,7 +81,7 @@ export default function VerificationsPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+  <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
         {loading ? (
           <p className="p-6 text-center text-gray-500">Chargement...</p>
         ) : logs.length === 0 ? (

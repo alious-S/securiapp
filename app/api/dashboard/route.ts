@@ -26,9 +26,7 @@ export async function GET() {
           OR: [{ expireAt: null }, { expireAt: { gt: now } }],
         },
       }),
-      prisma.card.count({
-        where: { expireAt: { lt: now } },
-      }),
+      prisma.card.count({ where: { expireAt: { lt: now } } }),
       prisma.card.count({
         where: { statut: { in: ["desactive", "revoque"] } },
       }),
@@ -41,6 +39,25 @@ export async function GET() {
       }),
     ]);
 
+    // Vérifications des 7 derniers jours (pour le graphique)
+    const verifsParJour = [];
+    for (let i = 6; i >= 0; i--) {
+      const debut = new Date(now);
+      debut.setDate(now.getDate() - i);
+      debut.setHours(0, 0, 0, 0);
+      const fin = new Date(debut);
+      fin.setDate(debut.getDate() + 1);
+
+      const count = await prisma.verificationLog.count({
+        where: { scannedAt: { gte: debut, lt: fin } },
+      });
+
+      verifsParJour.push({
+        jour: debut.toLocaleDateString("fr-FR", { weekday: "short" }),
+        total: count,
+      });
+    }
+
     return NextResponse.json({
       totalCartes,
       cartesActives,
@@ -49,12 +66,10 @@ export async function GET() {
       nombreAgents,
       verifsAujourdhui,
       verifsSemaine,
+      verifsParJour,
     });
   } catch (error) {
     console.error(error);
-    return NextResponse.json(
-      { error: "Erreur serveur" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

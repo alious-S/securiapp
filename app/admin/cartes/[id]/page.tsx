@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
+import QRCode from "qrcode";
 
 type Card = {
   id: string;
@@ -29,13 +30,19 @@ export default function CarteDetailPage({
   const [card, setCard] = useState<Card | null>(null);
   const [loading, setLoading] = useState(true);
   const [nouvelleExpiration, setNouvelleExpiration] = useState("");
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
   async function loadCard() {
-    const res = await fetch(`/api/cards/${id}`);
-    const data = await res.json();
-    setCard(data);
-    setLoading(false);
-  }
+  const res = await fetch(`/api/cards/${id}`);
+  const data = await res.json();
+  setCard(data);
+
+  const verifyUrl = `${window.location.origin}/v/${data.token}`;
+  const qr = await QRCode.toDataURL(verifyUrl, { width: 220, margin: 1 });
+  setQrCodeUrl(qr);
+
+  setLoading(false);
+}
 
   useEffect(() => {
     loadCard();
@@ -82,24 +89,43 @@ export default function CarteDetailPage({
       </h1>
 
       <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="flex items-center gap-4 mb-4">
-          {card.agent.photoUrl ? (
-            <img
-              src={card.agent.photoUrl}
-              alt="Photo"
-              className="w-20 h-20 rounded-full object-cover border"
-            />
-          ) : (
-            <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-xl font-bold text-gray-500">
-              {card.agent.prenom[0]}
-              {card.agent.nom[0]}
-            </div>
-          )}
-          <div>
-            <p className="text-gray-600">Matricule : {card.agent.matricule}</p>
-            <p className="text-gray-600">Agence : {card.agent.agence}</p>
-          </div>
+  <div className="flex items-center justify-between gap-4 mb-4">
+    <div className="flex items-center gap-4">
+      {card.agent.photoUrl ? (
+        <img
+          src={card.agent.photoUrl}
+          alt="Photo"
+          className="w-20 h-20 rounded-full object-cover border"
+        />
+      ) : (
+        <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-xl font-bold text-gray-500">
+          {card.agent.prenom[0]}
+          {card.agent.nom[0]}
         </div>
+      )}
+      <div>
+        <p className="text-gray-600">Matricule : {card.agent.matricule}</p>
+        <p className="text-gray-600">Agence : {card.agent.agence}</p>
+      </div>
+    </div>
+
+    {qrCodeUrl && (
+      <div className="text-center">
+        <img
+          src={qrCodeUrl}
+          alt="QR Code"
+          className="w-28 h-28 border rounded"
+        />
+        <a
+          href={`/carte/${card.token}`}
+          target="_blank"
+          className="text-xs text-blue-600 hover:underline mt-1 block"
+        >
+          Imprimer →
+        </a>
+      </div>
+    )}
+  </div>
 
         <div className="grid grid-cols-2 gap-4 text-sm border-t pt-4">
           <div>
