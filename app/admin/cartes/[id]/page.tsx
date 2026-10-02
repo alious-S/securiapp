@@ -84,7 +84,8 @@ export default function CarteDetailPage({
     );
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] p-4 md:p-8 max-w-3xl">
+   <div className="min-h-screen bg-[#0b0f19] w-full p-4 md:p-8">
+  <div className="max-w-xl mx-auto">
       <button
         onClick={() => router.push("/admin/cartes")}
         className="text-indigo-400 hover:text-indigo-300 mb-4 text-sm"
@@ -239,5 +240,6 @@ export default function CarteDetailPage({
         )}
       </div>
     </div>
+     </div>
   );
 }
