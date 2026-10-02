@@ -30,24 +30,26 @@ type Agent = {
   prenom: string;
   matricule: string;
   actif: boolean;
-  createdAt: string;
 };
 
-const COULEURS_STATUT = ["#6366f1", "#f97316", "#ef4444"];
+const COULEURS = ["#6366f1", "#f97316", "#ef4444"];
 
 function StatCard({
   label,
   value,
-  accent,
+  bordure,
 }: {
   label: string;
   value: number | string;
-  accent: string;
+  bordure: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-      <p className="text-sm text-gray-400">{label}</p>
-      <p className={`text-3xl font-bold mt-2 ${accent}`}>{value}</p>
+    <div
+      className="bg-slate-900 rounded-xl p-4 border-t-4"
+      style={{ borderTopColor: bordure }}
+    >
+      <p className="text-slate-400 text-xs">{label}</p>
+      <p className="text-2xl font-bold text-white mt-1">{value}</p>
     </div>
   );
 }
@@ -66,7 +68,11 @@ export default function DashboardPage() {
   }, []);
 
   if (!stats) {
-    return <div className="p-4 md:p-8">Chargement...</div>;
+    return (
+      <div className="min-h-screen bg-[#0b0f19] p-4 md:p-8 text-white">
+        Chargement...
+      </div>
+    );
   }
 
   const dataDonut = [
@@ -76,61 +82,56 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="p-4 md:p-8">
-      <h1 className="text-2xl font-bold mb-6 text-slate-800">Dashboard</h1>
+    <div className="min-h-screen bg-[#0b0f19] p-4 md:p-8">
+      <h1 className="text-2xl font-bold mb-6 text-white">
+        Dashboard Overview
+      </h1>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
-          label="Total cartes"
-          value={stats.totalCartes}
-          accent="text-slate-800"
-        />
-        <StatCard
-          label="Cartes actives"
-          value={stats.cartesActives}
-          accent="text-indigo-600"
-        />
-        <StatCard
-          label="Expirées"
-          value={stats.cartesExpirees}
-          accent="text-orange-500"
-        />
-        <StatCard
-          label="Suspendues"
-          value={stats.cartesSuspendues}
-          accent="text-red-500"
-        />
+      {/* Ligne de petites stats, bordure du haut colorée */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+        <StatCard label="Total cartes" value={stats.totalCartes} bordure="#6366f1" />
+        <StatCard label="Cartes actives" value={stats.cartesActives} bordure="#22c55e" />
+        <StatCard label="Expirées" value={stats.cartesExpirees} bordure="#f97316" />
+        <StatCard label="Suspendues" value={stats.cartesSuspendues} bordure="#ef4444" />
+        <StatCard label="Agents" value={stats.nombreAgents} bordure="#06b6d4" />
+        <StatCard label="Scans aujourd'hui" value={stats.verifsAujourdhui} bordure="#ec4899" />
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid lg:grid-cols-3 gap-5">
         {/* Donut */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <p className="font-semibold text-slate-800 mb-3">
+        <div className="bg-slate-900 rounded-2xl p-5 border-l-4 border-indigo-500">
+          <p className="font-semibold text-white mb-3">
             Répartition des cartes
           </p>
-          <div className="relative h-48">
+          <div className="relative h-44">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={dataDonut}
                   dataKey="value"
-                  innerRadius={55}
-                  outerRadius={80}
+                  innerRadius={50}
+                  outerRadius={75}
                   paddingAngle={3}
                 >
                   {dataDonut.map((_, i) => (
-                    <Cell key={i} fill={COULEURS_STATUT[i]} />
+                    <Cell key={i} fill={COULEURS[i]} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip
+                  contentStyle={{
+                    background: "#1e293b",
+                    border: "none",
+                    borderRadius: 8,
+                    color: "#fff",
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <p className="text-2xl font-bold text-slate-800">
+              <p className="text-xl font-bold text-white">
                 {stats.totalCartes}
               </p>
-              <p className="text-xs text-gray-400">cartes</p>
+              <p className="text-xs text-slate-400">cartes</p>
             </div>
           </div>
           <div className="flex justify-center gap-4 mt-3 text-xs">
@@ -138,87 +139,92 @@ export default function DashboardPage() {
               <div key={d.name} className="flex items-center gap-1.5">
                 <span
                   className="w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: COULEURS_STATUT[i] }}
+                  style={{ backgroundColor: COULEURS[i] }}
                 />
-                <span className="text-gray-500">{d.name}</span>
+                <span className="text-slate-400">{d.name}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Bar chart vérifications */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:col-span-2">
+        {/* Bar chart */}
+        <div className="bg-slate-900 rounded-2xl p-5 border-l-4 border-cyan-500 lg:col-span-2">
           <div className="flex items-center justify-between mb-3">
-            <p className="font-semibold text-slate-800">
+            <p className="font-semibold text-white">
               Vérifications (7 derniers jours)
             </p>
-            <div className="flex gap-4 text-xs text-gray-400">
-              <span>
-                Aujourd&apos;hui :{" "}
-                <strong className="text-slate-700">
-                  {stats.verifsAujourdhui}
-                </strong>
-              </span>
-              <span>
-                Semaine :{" "}
-                <strong className="text-slate-700">
-                  {stats.verifsSemaine}
-                </strong>
-              </span>
-            </div>
+            <span className="text-xs text-slate-400">
+              Semaine :{" "}
+              <strong className="text-white">{stats.verifsSemaine}</strong>
+            </span>
           </div>
-          <div className="h-48">
+          <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.verifsParJour}>
                 <XAxis
                   dataKey="jour"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 12, fill: "#9ca3af" }}
+                  tick={{ fontSize: 12, fill: "#94a3b8" }}
                 />
-                <Tooltip />
-                <Bar dataKey="total" fill="#6366f1" radius={[6, 6, 0, 0]} />
+                <Tooltip
+                  contentStyle={{
+                    background: "#1e293b",
+                    border: "none",
+                    borderRadius: 8,
+                    color: "#fff",
+                  }}
+                />
+                <Bar dataKey="total" fill="#06b6d4" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* Derniers agents + nombre d'agents */}
-      <div className="grid md:grid-cols-3 gap-6 mt-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <p className="text-sm text-gray-400">Nombre d&apos;agents</p>
-          <p className="text-3xl font-bold mt-2 text-slate-800">
-            {stats.nombreAgents}
-          </p>
+      {/* Agents */}
+      <div className="grid lg:grid-cols-3 gap-5 mt-5">
+        <div className="bg-slate-900 rounded-2xl p-5 border-l-4 border-emerald-500">
+          <p className="text-slate-400 text-sm mb-3">Agents</p>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg">
+              👥
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">
+                {stats.nombreAgents}
+              </p>
+              <p className="text-xs text-slate-400">total enregistrés</p>
+            </div>
+          </div>
           <Link
             href="/admin/agents"
-            className="text-xs text-indigo-600 hover:underline mt-3 inline-block"
+            className="block text-center bg-white text-slate-900 font-medium text-sm rounded-lg py-2 hover:bg-slate-100"
           >
-            Voir tous les agents →
+            Voir tous les agents
           </Link>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:col-span-2">
-          <p className="font-semibold text-slate-800 mb-3">
+        <div className="bg-slate-900 rounded-2xl p-5 border-l-4 border-pink-500 lg:col-span-2">
+          <p className="font-semibold text-white mb-3">
             Derniers agents ajoutés
           </p>
-          <div className="space-y-2">
+          <div className="space-y-1">
             {agents.map((agent) => (
               <div
                 key={agent.id}
-                className="flex items-center justify-between py-2 border-b last:border-0"
+                className="flex items-center justify-between py-2 border-b border-slate-800 last:border-0"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">
+                  <div className="w-9 h-9 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs font-bold">
                     {agent.prenom[0]}
                     {agent.nom[0]}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-800">
+                    <p className="text-sm font-medium text-white">
                       {agent.prenom} {agent.nom}
                     </p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-slate-500">
                       {agent.matricule}
                     </p>
                   </div>
@@ -226,8 +232,8 @@ export default function DashboardPage() {
                 <span
                   className={`text-xs px-2 py-1 rounded-full ${
                     agent.actif
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-500"
+                      ? "bg-green-500/20 text-green-400"
+                      : "bg-slate-700 text-slate-400"
                   }`}
                 >
                   {agent.actif ? "actif" : "inactif"}
