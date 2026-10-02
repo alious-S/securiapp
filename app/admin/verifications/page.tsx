@@ -31,7 +31,8 @@ export default function VerificationsPage() {
   }, [loadLogs]);
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] p-4 md:p-8">
+  <div className="min-h-screen bg-[#0b0f19] w-full p-4 md:p-8">
+  <div className="max-w-xl mx-auto">
       <h1 className="text-2xl font-bold text-white mb-6">Vérifications</h1>
 
       <div className="bg-slate-900 rounded-2xl border-l-4 border-indigo-500 p-4 mb-6 flex flex-wrap gap-4 items-center">
@@ -127,6 +128,7 @@ export default function VerificationsPage() {
           </table>
         )}
       </div>
+    </div>
     </div>
   );
 }

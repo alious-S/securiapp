@@ -53,7 +53,8 @@ export default function AgentsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] p-4 md:p-8">
+   <div className="min-h-screen bg-[#0b0f19] w-full p-4 md:p-8">
+  <div className="max-w-xl mx-auto">
       <h1 className="text-2xl font-bold text-white mb-6">
         Gestion des agents
       </h1>
@@ -153,6 +154,7 @@ export default function AgentsPage() {
           </table>
         )}
       </div>
+    </div>
     </div>
   );
 }
