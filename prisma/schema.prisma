@@ -49,3 +49,12 @@ model Settings {
   nomOrganisation  String  @default("SecuriApp")
   dureeValiditeJours Int   @default(365)
 }
+model Admin {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  nom            String
+  passwordHash   String
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  createdAt      DateTime  @default(now())
+}

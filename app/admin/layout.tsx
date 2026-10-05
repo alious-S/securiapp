@@ -1,13 +1,16 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowUpRight,
   Bell,
+  ChevronDown,
   IdCard,
   LayoutDashboard,
+  Loader2,
+  LogOut,
   Menu,
   ScanLine,
   Search,
@@ -19,7 +22,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { cn } from "@/components/admin/ui";
+import { Skeleton, cn } from "@/components/admin/ui";
 
 type NavEntry = {
   href: string;
@@ -27,6 +30,8 @@ type NavEntry = {
   icon: LucideIcon;
   badge?: boolean;
 };
+
+type Profil = { nom: string; email: string };
 
 const menu: NavEntry[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -40,6 +45,15 @@ const general: NavEntry[] = [
   { href: "/admin/generateur", label: "Générateur", icon: SquarePlus },
   { href: "/admin/parametres", label: "Paramètres", icon: Settings },
 ];
+
+const initiales = (nom: string) =>
+  nom
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join("")
+    .toUpperCase() || "A";
 
 function NavItem({
   item,
@@ -94,6 +108,27 @@ export default function AdminLayout({
   const [open, setOpen] = useState(false);
   const [recherche, setRecherche] = useState("");
   const [alertes, setAlertes] = useState(0);
+  const [profil, setProfil] = useState<Profil | null>(null);
+  const [menuProfil, setMenuProfil] = useState(false);
+  const [sortie, setSortie] = useState(false);
+  const profilRef = useRef<HTMLDivElement>(null);
+
+  // Profil de l'administrateur connecté
+  useEffect(() => {
+    let actif = true;
+    fetch("/api/auth/me")
+      .then(async (res) => {
+        if (res.status === 401) {
+          router.replace("/login");
+          return;
+        }
+        if (res.ok && actif) setProfil(await res.json());
+      })
+      .catch(() => {});
+    return () => {
+      actif = false;
+    };
+  }, [router]);
 
   // Nombre d'alertes (badge)
   useEffect(() => {
@@ -128,6 +163,23 @@ export default function AdminLayout({
     };
   }, [open]);
 
+  // Ferme le menu profil au clic extérieur ou avec Échap
+  useEffect(() => {
+    if (!menuProfil) return;
+    const onClick = (e: MouseEvent) => {
+      if (!profilRef.current?.contains(e.target as Node)) setMenuProfil(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuProfil(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuProfil]);
+
   function isActive(href: string) {
     return href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
   }
@@ -136,6 +188,18 @@ export default function AdminLayout({
     e.preventDefault();
     const q = recherche.trim();
     router.push(q ? `/admin/cartes?q=${encodeURIComponent(q)}` : "/admin/cartes");
+  }
+
+  async function deconnexion() {
+    if (sortie) return;
+    setSortie(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      /* on redirige quand même */
+    }
+    router.replace("/login");
+    router.refresh();
   }
 
   const fermer = () => setOpen(false);
@@ -209,6 +273,18 @@ export default function AdminLayout({
                   onNavigate={fermer}
                 />
               ))}
+              <button
+                onClick={deconnexion}
+                disabled={sortie}
+                className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-60"
+              >
+                {sortie ? (
+                  <Loader2 className="size-[18px] animate-spin" />
+                ) : (
+                  <LogOut className="size-[18px]" strokeWidth={1.8} />
+                )}
+                Déconnexion
+              </button>
             </div>
           </div>
         </nav>
@@ -268,14 +344,81 @@ export default function AdminLayout({
                 <span className="absolute right-2.5 top-2.5 size-2 rounded-full bg-rose-500 ring-2 ring-white" />
               )}
             </Link>
-            <div className="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-1 sm:pr-3">
-              <span className="grid size-10 place-items-center rounded-full bg-brand-800 text-sm font-semibold text-white">
-                A
-              </span>
-              <div className="hidden leading-tight sm:block">
-                <p className="text-sm font-semibold text-ink">Administrateur</p>
-                <p className="text-xs text-muted">SecuriApp</p>
-              </div>
+
+            {/* Profil de l'administrateur */}
+            <div ref={profilRef} className="relative">
+              <button
+                onClick={() => setMenuProfil((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={menuProfil}
+                className="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-2 transition hover:bg-black/[0.04] sm:pr-3"
+              >
+                <span className="grid size-10 place-items-center rounded-full bg-brand-800 text-sm font-semibold text-white">
+                  {profil ? initiales(profil.nom) : "·"}
+                </span>
+                <div className="hidden text-left leading-tight sm:block">
+                  {profil ? (
+                    <>
+                      <p className="max-w-[140px] truncate text-sm font-semibold text-ink">
+                        {profil.nom}
+                      </p>
+                      <p className="max-w-[140px] truncate text-xs text-muted">
+                        {profil.email}
+                      </p>
+                    </>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-3.5 w-24" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                  )}
+                </div>
+                <ChevronDown
+                  className={cn(
+                    "hidden size-4 text-muted transition-transform sm:block",
+                    menuProfil && "rotate-180"
+                  )}
+                />
+              </button>
+
+              {menuProfil && (
+                <div
+                  role="menu"
+                  className="page-enter absolute right-0 top-[calc(100%+0.5rem)] z-50 w-64 rounded-2xl bg-white p-2 shadow-[0_8px_40px_rgba(16,26,20,0.14)] ring-1 ring-black/[0.05]"
+                >
+                  <div className="px-3 py-2.5">
+                    <p className="truncate text-sm font-semibold text-ink">
+                      {profil?.nom ?? "Administrateur"}
+                    </p>
+                    <p className="truncate text-xs text-muted">
+                      {profil?.email}
+                    </p>
+                  </div>
+                  <div className="my-1 h-px bg-line" />
+                  <Link
+                    href="/admin/parametres"
+                    role="menuitem"
+                    onClick={() => setMenuProfil(false)}
+                    className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-ink transition hover:bg-black/[0.04]"
+                  >
+                    <Settings className="size-4 text-muted" />
+                    Paramètres et compte
+                  </Link>
+                  <button
+                    role="menuitem"
+                    onClick={deconnexion}
+                    disabled={sortie}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+                  >
+                    {sortie ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <LogOut className="size-4" />
+                    )}
+                    Se déconnecter
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>
