@@ -1,6 +1,20 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ChevronRight, Plus, Users } from "lucide-react";
+import {
+  Avatar,
+  Card,
+  EmptyState,
+  ListSkeleton,
+  PageHeader,
+  Pill,
+  SearchField,
+  btnPrimary,
+  chip,
+  cn,
+} from "@/components/admin/ui";
 
 type Agent = {
   id: string;
@@ -10,151 +24,188 @@ type Agent = {
   agence: string;
   actif: boolean;
   photoUrl: string | null;
-  cards: { statut: string }[];
+  cards: { id: string; statut: string }[];
 };
 
-export default function AgentsPage() {
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [recherche, setRecherche] = useState("");
-  const [filtreActif, setFiltreActif] = useState("tous");
-  const [loading, setLoading] = useState(true);
+function Switch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onChange}
+      className={cn(
+        "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+        checked ? "bg-brand-700" : "bg-black/15"
+      )}
+    >
+      <span
+        className={cn(
+          "absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow transition-transform",
+          checked && "translate-x-5"
+        )}
+      />
+    </button>
+  );
+}
 
-  const loadAgents = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch("/api/agents");
-    setAgents(await res.json());
-    setLoading(false);
-  }, []);
+const filtres = [
+  { value: "tous", label: "Tous" },
+  { value: "actif", label: "Actifs" },
+  { value: "inactif", label: "Inactifs" },
+];
+
+export default function AgentsPage() {
+  const [agents, setAgents] = useState<Agent[] | null>(null);
+  const [error, setError] = useState(false);
+  const [recherche, setRecherche] = useState("");
+  const [filtre, setFiltre] = useState("tous");
 
   useEffect(() => {
-    loadAgents();
-  }, [loadAgents]);
+    fetch("/api/agents")
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then(setAgents)
+      .catch(() => setError(true));
+  }, []);
 
-  async function toggleActif(agent: Agent) {
-    await fetch(`/api/agents/${agent.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ actif: !agent.actif }),
-    });
-    loadAgents();
+  async function basculer(agent: Agent) {
+    const prochain = !agent.actif;
+    const maj = (valeur: boolean) =>
+      setAgents((prev) =>
+        prev ? prev.map((a) => (a.id === agent.id ? { ...a, actif: valeur } : a)) : prev
+      );
+    maj(prochain);
+    try {
+      const res = await fetch(`/api/agents/${agent.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actif: prochain }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      maj(!prochain);
+    }
   }
 
-  const agentsFiltres = agents.filter((a) => {
-    const matchRecherche =
-      !recherche ||
-      `${a.nom} ${a.prenom} ${a.matricule}`
-        .toLowerCase()
-        .includes(recherche.toLowerCase());
-    const matchActif =
-      filtreActif === "tous" ||
-      (filtreActif === "actif" && a.actif) ||
-      (filtreActif === "inactif" && !a.actif);
-    return matchRecherche && matchActif;
-  });
+  const liste = useMemo(() => {
+    if (!agents) return [];
+    const q = recherche.trim().toLowerCase();
+    return agents.filter((a) => {
+      const okRecherche =
+        !q || `${a.nom} ${a.prenom} ${a.matricule} ${a.agence}`.toLowerCase().includes(q);
+      const okFiltre =
+        filtre === "tous" || (filtre === "actif" ? a.actif : !a.actif);
+      return okRecherche && okFiltre;
+    });
+  }, [agents, recherche, filtre]);
 
   return (
-   <div className="min-h-screen bg-[#0b0f19] w-full p-4 md:p-8">
-  <div className="max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold text-white mb-6">
-        Gestion des agents
-      </h1>
+    <>
+      <PageHeader
+        title="Agents"
+        subtitle="Gérez les agents et activez ou suspendez leur accès."
+        actions={
+          <Link href="/admin/generateur" className={btnPrimary}>
+            <Plus className="size-4" /> Nouvel agent
+          </Link>
+        }
+      />
 
-      <div className="bg-slate-900 rounded-2xl border-l-4 border-indigo-500 p-4 mb-6 flex flex-wrap gap-3 items-center">
-        <input
-          type="text"
-          placeholder="Rechercher un agent..."
-          value={recherche}
-          onChange={(e) => setRecherche(e.target.value)}
-          className="bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg px-3 py-2 flex-1 min-w-[250px] outline-none focus:border-indigo-500"
-        />
-        <div className="flex gap-2">
-          {["tous", "actif", "inactif"].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFiltreActif(f)}
-              className={`px-3 py-1.5 rounded-lg text-sm capitalize ${
-                filtreActif === f
-                  ? "bg-white text-slate-900 font-semibold"
-                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-              }`}
-            >
-              {f === "tous" ? "Tous" : f}
-            </button>
-          ))}
+      <Card className="mb-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <SearchField
+            value={recherche}
+            onChange={setRecherche}
+            placeholder="Rechercher un agent…"
+          />
+          <div className="flex flex-wrap gap-1.5">
+            {filtres.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setFiltre(f.value)}
+                className={chip(filtre === f.value)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-slate-900 rounded-2xl border-l-4 border-cyan-500 overflow-hidden overflow-x-auto">
-        {loading ? (
-          <p className="p-6 text-center text-slate-400">Chargement...</p>
-        ) : agentsFiltres.length === 0 ? (
-          <p className="p-6 text-center text-slate-400">
-            Aucun agent trouvé.
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="text-slate-400 text-left border-b border-slate-800">
-              <tr>
-                <th className="px-4 py-3">Agent</th>
-                <th className="px-4 py-3">Matricule</th>
-                <th className="px-4 py-3">Agence</th>
-                <th className="px-4 py-3">Statut</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {agentsFiltres.map((agent) => (
-                <tr
-                  key={agent.id}
-                  className="border-t border-slate-800 hover:bg-slate-800/50"
+      {error ? (
+        <Card className="py-10 text-center text-sm text-muted">
+          Impossible de charger les agents.
+        </Card>
+      ) : agents === null ? (
+        <ListSkeleton />
+      ) : (
+        <Card className="p-2 sm:p-3">
+          {liste.length === 0 ? (
+            <EmptyState
+              icon={<Users className="size-6" />}
+              title="Aucun agent trouvé"
+              text="Modifiez votre recherche ou vos filtres."
+            />
+          ) : (
+            <ul className="divide-y divide-line/70">
+              {liste.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center gap-3 rounded-2xl px-3 py-3 transition hover:bg-brand-50/60 sm:gap-4"
                 >
-                  <td className="px-4 py-3 font-medium text-white flex items-center gap-2">
-                    {agent.photoUrl ? (
-                      <img
-                        src={agent.photoUrl}
-                        alt=""
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs font-bold">
-                        {agent.prenom[0]}
-                        {agent.nom[0]}
-                      </div>
-                    )}
-                    {agent.prenom} {agent.nom}
-                  </td>
-                  <td className="px-4 py-3 text-slate-400">
-                    {agent.matricule}
-                  </td>
-                  <td className="px-4 py-3 text-slate-400">
-                    {agent.agence}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        agent.actif
-                          ? "bg-green-500/20 text-green-400"
-                          : "bg-slate-700 text-slate-400"
-                      }`}
+                  <Avatar
+                    photoUrl={a.photoUrl}
+                    prenom={a.prenom}
+                    nom={a.nom}
+                    className="size-11 text-sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-ink">
+                      {a.prenom} {a.nom}
+                    </p>
+                    <p className="truncate text-xs text-muted">
+                      {a.matricule} · {a.agence}
+                    </p>
+                  </div>
+                  <span className="hidden sm:block">
+                    <Pill tone={a.actif ? "green" : "slate"}>
+                      {a.actif ? "Actif" : "Inactif"}
+                    </Pill>
+                  </span>
+                  <Switch
+                    checked={a.actif}
+                    onChange={() => basculer(a)}
+                    label={`${a.actif ? "Désactiver" : "Activer"} ${a.prenom} ${a.nom}`}
+                  />
+                  {a.cards[0] ? (
+                    <Link
+                      href={`/admin/cartes/${a.cards[0].id}`}
+                      aria-label="Voir la carte"
+                      className="grid size-8 shrink-0 place-items-center rounded-full text-muted transition hover:bg-black/[0.05] hover:text-ink"
                     >
-                      {agent.actif ? "actif" : "inactif"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => toggleActif(agent)}
-                      className="text-sm text-indigo-400 hover:text-indigo-300"
-                    >
-                      {agent.actif ? "Désactiver" : "Activer"}
-                    </button>
-                  </td>
-                </tr>
+                      <ChevronRight className="size-4" />
+                    </Link>
+                  ) : (
+                    <span className="size-8 shrink-0" />
+                  )}
+                </li>
               ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-    </div>
+            </ul>
+          )}
+        </Card>
+      )}
+    </>
   );
 }

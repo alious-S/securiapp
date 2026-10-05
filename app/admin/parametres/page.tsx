@@ -1,104 +1,134 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check } from "lucide-react";
+import {
+  Card,
+  CardTitle,
+  PageHeader,
+  Skeleton,
+  btnPrimary,
+  chip,
+  inputClass,
+} from "@/components/admin/ui";
+
+const durees = [
+  { jours: 90, label: "3 mois" },
+  { jours: 180, label: "6 mois" },
+  { jours: 365, label: "1 an" },
+  { jours: 730, label: "2 ans" },
+];
 
 export default function ParametresPage() {
-  const [nomOrganisation, setNomOrganisation] = useState("");
-  const [dureeValiditeJours, setDureeValiditeJours] = useState(365);
+  const [nom, setNom] = useState("");
+  const [duree, setDuree] = useState(365);
   const [loading, setLoading] = useState(true);
-  const [saved, setSaved] = useState(false);
+  const [enregistre, setEnregistre] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings")
-      .then((res) => res.json())
-      .then((data) => {
-        setNomOrganisation(data.nomOrganisation);
-        setDureeValiditeJours(data.dureeValiditeJours);
+      .then((r) => r.json())
+      .then((d) => {
+        setNom(d.nomOrganisation);
+        setDuree(d.dureeValiditeJours);
         setLoading(false);
-      });
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  async function handleSave(e: React.FormEvent) {
+  async function enregistrer(e: React.FormEvent) {
     e.preventDefault();
-    await fetch("/api/settings", {
+    const res = await fetch("/api/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nomOrganisation, dureeValiditeJours }),
+      body: JSON.stringify({ nomOrganisation: nom, dureeValiditeJours: duree }),
     });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    if (res.ok) {
+      setEnregistre(true);
+      setTimeout(() => setEnregistre(false), 2000);
+    }
   }
 
-  if (loading)
-    return (
-      <div className="min-h-screen bg-[#0b0f19] p-8 text-white">
-        Chargement...
-      </div>
-    );
-
-  const inputClass =
-    "w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500";
-
   return (
-    <div className="min-h-screen bg-[#0b0f19] w-full p-4 md:p-8">
-  <div className="max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold text-white mb-6">Paramètres</h1>
+    <>
+      <PageHeader
+        title="Paramètres"
+        subtitle="Réglages généraux de votre espace d’administration."
+      />
 
-      <form
-        onSubmit={handleSave}
-        className="bg-slate-900 rounded-2xl border-l-4 border-indigo-500 p-6 space-y-5"
-      >
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">
-            Nom de l&apos;organisation
-          </label>
-          <input
-            type="text"
-            value={nomOrganisation}
-            onChange={(e) => setNomOrganisation(e.target.value)}
-            className={inputClass}
-          />
-          <p className="text-xs text-slate-500 mt-1">
-            Affiché sur les cartes générées.
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardTitle title="Général" />
+          {loading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-11 w-full" />
+              <Skeleton className="h-11 w-full" />
+            </div>
+          ) : (
+            <form onSubmit={enregistrer} className="space-y-6">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-muted">
+                  Nom de l’organisation
+                </span>
+                <input
+                  value={nom}
+                  onChange={(e) => setNom(e.target.value)}
+                  className={inputClass}
+                />
+              </label>
+
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-muted">
+                  Durée de validité proposée au renouvellement
+                </span>
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                  {durees.map((d) => (
+                    <button
+                      type="button"
+                      key={d.jours}
+                      onClick={() => setDuree(d.jours)}
+                      className={chip(duree === d.jours)}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative max-w-[220px]">
+                  <input
+                    type="number"
+                    min={1}
+                    value={duree}
+                    onChange={(e) => setDuree(Number(e.target.value))}
+                    className={`${inputClass} pr-16`}
+                  />
+                  <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-muted">
+                    jours
+                  </span>
+                </div>
+              </div>
+
+              <button type="submit" className={btnPrimary}>
+                {enregistre ? (
+                  <>
+                    <Check className="size-4" /> Enregistré
+                  </>
+                ) : (
+                  "Enregistrer"
+                )}
+              </button>
+            </form>
+          )}
+        </Card>
+
+        <Card>
+          <CardTitle title="À propos" />
+          <p className="text-sm leading-relaxed text-muted">
+            SecuriApp permet de vérifier instantanément l’identité des agents de
+            sécurité grâce à un QR code imprimé sur leur carte.
           </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">
-            Durée de validité par défaut (jours)
-          </label>
-          <input
-            type="number"
-            min={1}
-            value={dureeValiditeJours}
-            onChange={(e) => setDureeValiditeJours(Number(e.target.value))}
-            className={inputClass}
-          />
-          <p className="text-xs text-slate-500 mt-1">
-            Suggestion par défaut lors du renouvellement d&apos;une carte.
-          </p>
-        </div>
-
-        <button
-          type="submit"
-          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-500 font-medium"
-        >
-          Enregistrer
-        </button>
-        {saved && (
-          <span className="ml-3 text-green-400 text-sm">✓ Enregistré</span>
-        )}
-      </form>
-
-      <div className="bg-slate-900 rounded-2xl border-l-4 border-cyan-500 p-6 mt-6">
-        <h2 className="font-semibold text-white mb-3">À propos</h2>
-        <p className="text-sm text-slate-400">
-          SecuriApp — Système de vérification d&apos;identité des agents de
-          sécurité.
-        </p>
-        <p className="text-xs text-slate-600 mt-2">Version démo — 2026</p>
+          <p className="mt-4 text-xs text-muted/70">Version démo · 2026</p>
+        </Card>
       </div>
-    </div>
-    </div>
+    </>
   );
 }

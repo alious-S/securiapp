@@ -1,149 +1,175 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { ChevronRight, IdCard, Plus } from "lucide-react";
+import {
+  Avatar,
+  Card,
+  EmptyState,
+  ListSkeleton,
+  PageHeader,
+  Pill,
+  SearchField,
+  btnPrimary,
+  chip,
+  etatCarte,
+  formatDate,
+} from "@/components/admin/ui";
 
-type Card = {
+type CardItem = {
   id: string;
-  token: string;
   statut: string;
   expireAt: string | null;
-  createdAt: string;
   agent: {
     nom: string;
     prenom: string;
     matricule: string;
     agence: string;
+    photoUrl: string | null;
   };
 };
 
-const statutStyles: Record<string, string> = {
-  actif: "bg-green-500/20 text-green-400",
-  desactive: "bg-slate-700 text-slate-300",
-  revoque: "bg-red-500/20 text-red-400",
-};
+const filtres = [
+  { value: "tous", label: "Toutes" },
+  { value: "actif", label: "Actives" },
+  { value: "desactive", label: "Désactivées" },
+  { value: "revoque", label: "Révoquées" },
+];
 
-function estExpiree(card: Card) {
-  return card.expireAt && new Date(card.expireAt) < new Date();
+function CartesContent() {
+  const params = useSearchParams();
+  const qUrl = params.get("q") ?? "";
+
+  const [recherche, setRecherche] = useState(qUrl);
+  const [statut, setStatut] = useState("tous");
+  const [cards, setCards] = useState<CardItem[] | null>(null);
+  const [error, setError] = useState(false);
+
+  // Synchronise avec la recherche de la barre du haut
+  useEffect(() => {
+    setRecherche(qUrl);
+  }, [qUrl]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const sp = new URLSearchParams();
+        if (statut !== "tous") sp.set("statut", statut);
+        if (recherche.trim()) sp.set("q", recherche.trim());
+        const res = await fetch(`/api/cards?${sp.toString()}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error();
+        setCards(await res.json());
+        setError(false);
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") setError(true);
+      }
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
+  }, [statut, recherche]);
+
+  return (
+    <>
+      <PageHeader
+        title="Cartes"
+        subtitle="Consultez, filtrez et gérez toutes les cartes d’agents."
+        actions={
+          <Link href="/admin/generateur" className={btnPrimary}>
+            <Plus className="size-4" /> Nouvelle carte
+          </Link>
+        }
+      />
+
+      <Card className="mb-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <SearchField
+            value={recherche}
+            onChange={setRecherche}
+            placeholder="Nom, prénom ou matricule…"
+          />
+          <div className="flex flex-wrap gap-1.5">
+            {filtres.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setStatut(f.value)}
+                className={chip(statut === f.value)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {error ? (
+        <Card className="py-10 text-center text-sm text-muted">
+          Impossible de charger les cartes.
+        </Card>
+      ) : cards === null ? (
+        <ListSkeleton />
+      ) : (
+        <Card className="p-2 sm:p-3">
+          {cards.length === 0 ? (
+            <EmptyState
+              icon={<IdCard className="size-6" />}
+              title="Aucune carte trouvée"
+              text="Essayez un autre filtre ou une autre recherche."
+            />
+          ) : (
+            <ul className="divide-y divide-line/70">
+              {cards.map((c) => {
+                const etat = etatCarte(c.statut, c.expireAt);
+                return (
+                  <li key={c.id}>
+                    <Link
+                      href={`/admin/cartes/${c.id}`}
+                      className="group flex items-center gap-3 rounded-2xl px-3 py-3 transition hover:bg-brand-50/60 sm:gap-4"
+                    >
+                      <Avatar
+                        photoUrl={c.agent.photoUrl}
+                        prenom={c.agent.prenom}
+                        nom={c.agent.nom}
+                        className="size-11 text-sm"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-ink">
+                          {c.agent.prenom} {c.agent.nom}
+                        </p>
+                        <p className="truncate text-xs text-muted">
+                          {c.agent.matricule} · {c.agent.agence}
+                        </p>
+                      </div>
+                      <div className="hidden text-right md:block">
+                        <p className="text-[11px] text-muted">Expiration</p>
+                        <p className="text-xs font-medium text-ink">
+                          {c.expireAt ? formatDate(c.expireAt) : "Illimitée"}
+                        </p>
+                      </div>
+                      <Pill tone={etat.tone}>{etat.label}</Pill>
+                      <ChevronRight className="size-4 shrink-0 text-muted transition group-hover:translate-x-0.5" />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+      )}
+    </>
+  );
 }
 
 export default function CartesPage() {
-  const [cards, setCards] = useState<Card[]>([]);
-  const [statutFiltre, setStatutFiltre] = useState("tous");
-  const [recherche, setRecherche] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  const loadCards = useCallback(async () => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (statutFiltre !== "tous") params.set("statut", statutFiltre);
-    if (recherche) params.set("q", recherche);
-    const res = await fetch(`/api/cards?${params.toString()}`);
-    setCards(await res.json());
-    setLoading(false);
-  }, [statutFiltre, recherche]);
-
-  useEffect(() => {
-    const t = setTimeout(loadCards, 300);
-    return () => clearTimeout(t);
-  }, [loadCards]);
-
-  return (<div className="min-h-screen bg-[#0b0f19] w-full p-4 md:p-8">
-  <div className="max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-white mb-6">
-        Gestion des cartes
-      </h1>
-
-      <div className="bg-slate-900 rounded-2xl border-l-4 border-indigo-500 p-4 mb-6 flex flex-wrap gap-3 items-center">
-        <input
-          type="text"
-          placeholder="Rechercher par nom, prénom, matricule..."
-          value={recherche}
-          onChange={(e) => setRecherche(e.target.value)}
-          className="bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg px-3 py-2 flex-1 min-w-[250px] outline-none focus:border-indigo-500"
-        />
-        <div className="flex gap-2">
-          {["tous", "actif", "desactive", "revoque"].map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatutFiltre(s)}
-              className={`px-3 py-1.5 rounded-lg text-sm capitalize ${
-                statutFiltre === s
-                  ? "bg-white text-slate-900 font-semibold"
-                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-              }`}
-            >
-              {s === "tous" ? "Tous" : s}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-slate-900 rounded-2xl border-l-4 border-cyan-500 overflow-hidden overflow-x-auto">
-        {loading ? (
-          <p className="p-6 text-center text-slate-400">Chargement...</p>
-        ) : cards.length === 0 ? (
-          <p className="p-6 text-center text-slate-400">
-            Aucune carte trouvée.
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="text-slate-400 text-left border-b border-slate-800">
-              <tr>
-                <th className="px-4 py-3">Agent</th>
-                <th className="px-4 py-3">Matricule</th>
-                <th className="px-4 py-3">Agence</th>
-                <th className="px-4 py-3">Statut</th>
-                <th className="px-4 py-3">Expiration</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {cards.map((card) => (
-                <tr
-                  key={card.id}
-                  className="border-t border-slate-800 hover:bg-slate-800/50"
-                >
-                  <td className="px-4 py-3 font-medium text-white">
-                    {card.agent.prenom} {card.agent.nom}
-                  </td>
-                  <td className="px-4 py-3 text-slate-400">
-                    {card.agent.matricule}
-                  </td>
-                  <td className="px-4 py-3 text-slate-400">
-                    {card.agent.agence}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        estExpiree(card)
-                          ? "bg-orange-500/20 text-orange-400"
-                          : statutStyles[card.statut]
-                      }`}
-                    >
-                      {estExpiree(card) ? "expirée" : card.statut}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-400">
-                    {card.expireAt
-                      ? new Date(card.expireAt).toLocaleDateString("fr-FR")
-                      : "Sans expiration"}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/admin/cartes/${card.id}`}
-                      className="text-indigo-400 hover:text-indigo-300"
-                    >
-                      Voir détails →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-       </div>
-    </div>
+  return (
+    <Suspense fallback={<ListSkeleton />}>
+      <CartesContent />
+    </Suspense>
   );
 }

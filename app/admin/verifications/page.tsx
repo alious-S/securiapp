@@ -1,134 +1,198 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
+import { ScanLine, ShieldCheck, ShieldX } from "lucide-react";
+import {
+  Card,
+  EmptyState,
+  ListSkeleton,
+  PageHeader,
+  Pill,
+  chip,
+  formatDate,
+  formatTime,
+} from "@/components/admin/ui";
 
 type Log = {
   id: string;
   resultat: string;
   scannedAt: string;
   ipAddress: string | null;
-  card: {
-    agent: { nom: string; prenom: string; matricule: string };
-  } | null;
+  card: { agent: { nom: string; prenom: string; matricule: string } } | null;
 };
 
+const periodes = [
+  { value: "tous", label: "Tout" },
+  { value: "aujourdhui", label: "Aujourd’hui" },
+  { value: "semaine", label: "Cette semaine" },
+  { value: "mois", label: "Ce mois" },
+];
+
+const resultats = [
+  { value: "tous", label: "Tous" },
+  { value: "valide", label: "Valides" },
+  { value: "invalide", label: "Invalides" },
+];
+
+function MiniStat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent: string;
+}) {
+  return (
+    <Card className="p-4">
+      <p className="text-xs text-muted">{label}</p>
+      <p className={`mt-1 text-3xl font-semibold tracking-tight ${accent}`}>
+        {value}
+      </p>
+    </Card>
+  );
+}
+
 export default function VerificationsPage() {
-  const [logs, setLogs] = useState<Log[]>([]);
+  const [logs, setLogs] = useState<Log[] | null>(null);
+  const [error, setError] = useState(false);
   const [periode, setPeriode] = useState("tous");
   const [resultat, setResultat] = useState("tous");
-  const [loading, setLoading] = useState(true);
-
-  const loadLogs = useCallback(async () => {
-    setLoading(true);
-    const params = new URLSearchParams({ periode, resultat });
-    const res = await fetch(`/api/verifications?${params.toString()}`);
-    setLogs(await res.json());
-    setLoading(false);
-  }, [periode, resultat]);
 
   useEffect(() => {
-    loadLogs();
-  }, [loadLogs]);
+    let annule = false;
+    const sp = new URLSearchParams({ periode, resultat });
+    fetch(`/api/verifications?${sp.toString()}`)
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then((data) => {
+        if (!annule) {
+          setLogs(data);
+          setError(false);
+        }
+      })
+      .catch(() => {
+        if (!annule) setError(true);
+      });
+    return () => {
+      annule = true;
+    };
+  }, [periode, resultat]);
+
+  const valides = logs?.filter((l) => l.resultat === "valide").length ?? 0;
+  const invalides = (logs?.length ?? 0) - valides;
 
   return (
-  <div className="min-h-screen bg-[#0b0f19] w-full p-4 md:p-8">
-  <div className="max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold text-white mb-6">Vérifications</h1>
+    <>
+      <PageHeader
+        title="Vérifications"
+        subtitle="Historique de tous les scans effectués sur les cartes."
+      />
 
-      <div className="bg-slate-900 rounded-2xl border-l-4 border-indigo-500 p-4 mb-6 flex flex-wrap gap-4 items-center">
-        <div className="flex gap-2">
-          {[
-            { value: "tous", label: "Tout" },
-            { value: "aujourdhui", label: "Aujourd'hui" },
-            { value: "semaine", label: "Cette semaine" },
-            { value: "mois", label: "Ce mois" },
-          ].map((p) => (
-            <button
-              key={p.value}
-              onClick={() => setPeriode(p.value)}
-              className={`px-3 py-1.5 rounded-lg text-sm ${
-                periode === p.value
-                  ? "bg-white text-slate-900 font-semibold"
-                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2 border-l border-slate-700 pl-4">
-          {[
-            { value: "tous", label: "Tous résultats" },
-            { value: "valide", label: "Valides" },
-            { value: "invalide", label: "Invalides" },
-          ].map((r) => (
-            <button
-              key={r.value}
-              onClick={() => setResultat(r.value)}
-              className={`px-3 py-1.5 rounded-lg text-sm ${
-                resultat === r.value
-                  ? "bg-indigo-600 text-white"
-                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+      <div className="mb-4 grid grid-cols-3 gap-3 sm:gap-4">
+        <MiniStat label="Scans" value={logs?.length ?? 0} accent="text-ink" />
+        <MiniStat label="Valides" value={valides} accent="text-brand-700" />
+        <MiniStat label="Invalides" value={invalides} accent="text-rose-600" />
       </div>
 
-      <div className="bg-slate-900 rounded-2xl border-l-4 border-cyan-500 overflow-hidden overflow-x-auto">
-        {loading ? (
-          <p className="p-6 text-center text-slate-400">Chargement...</p>
-        ) : logs.length === 0 ? (
-          <p className="p-6 text-center text-slate-400">
-            Aucune vérification trouvée pour cette période.
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="text-slate-400 text-left border-b border-slate-800">
-              <tr>
-                <th className="px-4 py-3">Date / Heure</th>
-                <th className="px-4 py-3">Agent</th>
-                <th className="px-4 py-3">Résultat</th>
-                <th className="px-4 py-3">IP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map((log) => (
-                <tr
-                  key={log.id}
-                  className="border-t border-slate-800 hover:bg-slate-800/50"
+      <Card className="mb-4">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted">Période</p>
+            <div className="flex flex-wrap gap-1.5">
+              {periodes.map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => setPeriode(p.value)}
+                  className={chip(periode === p.value)}
                 >
-                  <td className="px-4 py-3 text-slate-400">
-                    {new Date(log.scannedAt).toLocaleString("fr-FR")}
-                  </td>
-                  <td className="px-4 py-3 font-medium text-white">
-                    {log.card
-                      ? `${log.card.agent.prenom} ${log.card.agent.nom} (${log.card.agent.matricule})`
-                      : "— Carte inconnue —"}
-                  </td>
-                  <td className="px-4 py-3">
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted">Résultat</p>
+            <div className="flex flex-wrap gap-1.5">
+              {resultats.map((r) => (
+                <button
+                  key={r.value}
+                  onClick={() => setResultat(r.value)}
+                  className={chip(resultat === r.value)}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {error ? (
+        <Card className="py-10 text-center text-sm text-muted">
+          Impossible de charger l’historique.
+        </Card>
+      ) : logs === null ? (
+        <ListSkeleton />
+      ) : (
+        <Card className="p-2 sm:p-3">
+          {logs.length === 0 ? (
+            <EmptyState
+              icon={<ScanLine className="size-6" />}
+              title="Aucune vérification"
+              text="Aucun scan ne correspond à ces filtres."
+            />
+          ) : (
+            <ul className="divide-y divide-line/70">
+              {logs.map((l) => {
+                const ok = l.resultat === "valide";
+                return (
+                  <li key={l.id} className="flex items-center gap-3 px-3 py-3 sm:gap-4">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        log.resultat === "valide"
-                          ? "bg-green-500/20 text-green-400"
-                          : "bg-red-500/20 text-red-400"
+                      className={`grid size-11 shrink-0 place-items-center rounded-full ${
+                        ok
+                          ? "bg-emerald-50 text-emerald-600"
+                          : "bg-rose-50 text-rose-600"
                       }`}
                     >
-                      {log.resultat}
+                      {ok ? (
+                        <ShieldCheck className="size-5" />
+                      ) : (
+                        <ShieldX className="size-5" />
+                      )}
                     </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">
-                    {log.ipAddress || "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {l.card
+                          ? `${l.card.agent.prenom} ${l.card.agent.nom}`
+                          : "Carte inconnue"}
+                      </p>
+                      <p className="truncate text-xs text-muted">
+                        {l.card ? l.card.agent.matricule : "Jeton inexistant"}
+                        {l.ipAddress && (
+                          <span className="hidden md:inline">
+                            {" "}
+                            · IP {l.ipAddress.split(",")[0]}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="hidden text-right sm:block">
+                      <p className="text-xs font-medium text-ink">
+                        {formatDate(l.scannedAt)}
+                      </p>
+                      <p className="text-xs text-muted">{formatTime(l.scannedAt)}</p>
+                    </div>
+                    <Pill tone={ok ? "green" : "rose"}>{ok ? "Valide" : "Invalide"}</Pill>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+      )}
+    </>
   );
 }

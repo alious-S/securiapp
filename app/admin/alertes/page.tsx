@@ -1,126 +1,209 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ChevronRight, ShieldCheck, Siren, TriangleAlert, Zap } from "lucide-react";
+import {
+  Card,
+  EmptyState,
+  PageHeader,
+  Pill,
+  Skeleton,
+  cn,
+  etatCarte,
+  formatDate,
+  formatTime,
+} from "@/components/admin/ui";
 
-type LogInvalide = {
+type Carte = {
   id: string;
-  scannedAt: string;
-  card: {
-    statut: string;
-    agent: { nom: string; prenom: string; matricule: string };
-  };
+  statut: string;
+  expireAt: string | null;
+  agent: { nom: string; prenom: string; matricule: string };
 };
-
-type CarteFrequence = {
-  count: number;
-  card: { agent: { nom: string; prenom: string; matricule: string } };
-};
-
+type LogInvalide = { id: string; scannedAt: string; card: Carte };
+type CarteFrequence = { count: number; card: Carte };
 type AlertesData = {
   cartesInvalidesUtilisees: LogInvalide[];
   cartesFrequenceAnormale: CarteFrequence[];
   tentativesInconnues: number;
 };
 
+const accents = {
+  rose: "bg-rose-50 text-rose-600",
+  amber: "bg-amber-50 text-amber-600",
+  yellow: "bg-yellow-50 text-yellow-600",
+};
+
+function Section({
+  tone,
+  icon,
+  title,
+  subtitle,
+  children,
+}: {
+  tone: keyof typeof accents;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <div className="flex items-start gap-3">
+        <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl", accents[tone])}>
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
+          <p className="mt-0.5 text-xs text-muted">{subtitle}</p>
+        </div>
+      </div>
+      {children && <div className="mt-4">{children}</div>}
+    </Card>
+  );
+}
+
 export default function AlertesPage() {
   const [data, setData] = useState<AlertesData | null>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     fetch("/api/alertes")
-      .then((res) => res.json())
-      .then(setData);
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then(setData)
+      .catch(() => setError(true));
   }, []);
 
-  if (!data)
-    return (
-      <div className="min-h-screen bg-[#0b0f19] p-8 text-white">
-        Chargement...
-      </div>
-    );
+  const header = (
+    <PageHeader
+      title="Alertes"
+      subtitle="Activités suspectes détectées sur les cartes."
+    />
+  );
 
-  const totalAlertes =
+  if (error) {
+    return (
+      <>
+        {header}
+        <Card className="py-10 text-center text-sm text-muted">
+          Impossible de charger les alertes.
+        </Card>
+      </>
+    );
+  }
+
+  if (!data) {
+    return (
+      <>
+        {header}
+        <Skeleton className="h-40 rounded-3xl" />
+      </>
+    );
+  }
+
+  const total =
     data.cartesInvalidesUtilisees.length +
     data.cartesFrequenceAnormale.length +
     (data.tentativesInconnues > 10 ? 1 : 0);
 
+  if (total === 0) {
+    return (
+      <>
+        {header}
+        <Card>
+          <EmptyState
+            icon={<ShieldCheck className="size-6" />}
+            title="Aucune activité suspecte"
+            text="Tout est calme : aucune alerte sur les dernières 24 heures."
+          />
+        </Card>
+      </>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#0b0f19] p-4 md:p-8">
-      <h1 className="text-2xl font-bold text-white mb-6">Alertes</h1>
+    <>
+      {header}
+      <div className="space-y-4">
+        {data.cartesInvalidesUtilisees.length > 0 && (
+          <Section
+            tone="rose"
+            icon={<Siren className="size-5" />}
+            title="Cartes bloquées présentées au contrôle"
+            subtitle="Cartes révoquées ou désactivées scannées ces dernières 24 heures"
+          >
+            <ul className="divide-y divide-line/70">
+              {data.cartesInvalidesUtilisees.map((l) => {
+                const etat = etatCarte(l.card.statut, l.card.expireAt);
+                return (
+                  <li key={l.id}>
+                    <Link
+                      href={`/admin/cartes/${l.card.id}`}
+                      className="group flex items-center gap-3 py-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-ink">
+                          {l.card.agent.prenom} {l.card.agent.nom}
+                        </p>
+                        <p className="truncate text-xs text-muted">
+                          {l.card.agent.matricule} · {formatDate(l.scannedAt)} à{" "}
+                          {formatTime(l.scannedAt)}
+                        </p>
+                      </div>
+                      <Pill tone={etat.tone}>{etat.label}</Pill>
+                      <ChevronRight className="size-4 shrink-0 text-muted transition group-hover:translate-x-0.5" />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </Section>
+        )}
 
-      {totalAlertes === 0 ? (
-        <div className="bg-slate-900 border-l-4 border-green-500 rounded-2xl p-6 text-center text-green-400">
-          ✅ Aucune activité suspecte détectée.
-        </div>
-      ) : (
-        <div className="space-y-5">
-          {data.cartesInvalidesUtilisees.length > 0 && (
-            <div className="bg-slate-900 rounded-2xl border-l-4 border-red-500">
-              <div className="p-4 border-b border-slate-800">
-                <h2 className="font-semibold text-red-400">
-                  ⚠️ Tentatives sur cartes révoquées/désactivées (24h)
-                </h2>
-              </div>
-              <div className="divide-y divide-slate-800">
-                {data.cartesInvalidesUtilisees.map((log) => (
-                  <div
-                    key={log.id}
-                    className="p-4 text-sm flex justify-between text-slate-300"
+        {data.cartesFrequenceAnormale.length > 0 && (
+          <Section
+            tone="amber"
+            icon={<Zap className="size-5" />}
+            title="Fréquence de scan anormale"
+            subtitle="Plus de 5 scans en une heure : carte peut-être copiée"
+          >
+            <ul className="divide-y divide-line/70">
+              {data.cartesFrequenceAnormale.map((c) => (
+                <li key={c.card.id}>
+                  <Link
+                    href={`/admin/cartes/${c.card.id}`}
+                    className="group flex items-center gap-3 py-3"
                   >
-                    <span>
-                      {log.card.agent.prenom} {log.card.agent.nom} (
-                      {log.card.agent.matricule}) — carte{" "}
-                      <strong className="text-white">
-                        {log.card.statut}
-                      </strong>
-                    </span>
-                    <span className="text-slate-500">
-                      {new Date(log.scannedAt).toLocaleString("fr-FR")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {c.card.agent.prenom} {c.card.agent.nom}
+                      </p>
+                      <p className="truncate text-xs text-muted">
+                        {c.card.agent.matricule}
+                      </p>
+                    </div>
+                    <Pill tone="amber">{c.count} scans / 1 h</Pill>
+                    <ChevronRight className="size-4 shrink-0 text-muted transition group-hover:translate-x-0.5" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
 
-          {data.cartesFrequenceAnormale.length > 0 && (
-            <div className="bg-slate-900 rounded-2xl border-l-4 border-orange-500">
-              <div className="p-4 border-b border-slate-800">
-                <h2 className="font-semibold text-orange-400">
-                  ⚠️ Cartes scannées anormalement souvent (1h)
-                </h2>
-              </div>
-              <div className="divide-y divide-slate-800">
-                {data.cartesFrequenceAnormale.map((c, i) => (
-                  <div
-                    key={i}
-                    className="p-4 text-sm flex justify-between text-slate-300"
-                  >
-                    <span>
-                      {c.card.agent.prenom} {c.card.agent.nom} (
-                      {c.card.agent.matricule})
-                    </span>
-                    <span className="text-orange-400 font-medium">
-                      {c.count} scans
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {data.tentativesInconnues > 10 && (
-            <div className="bg-slate-900 rounded-2xl border-l-4 border-yellow-500 p-4">
-              <h2 className="font-semibold text-yellow-400">
-                ⚠️ {data.tentativesInconnues} tentatives sur cartes
-                inexistantes (24h)
-              </h2>
-              <p className="text-sm text-slate-400 mt-1">
-                Possible tentative de deviner des tokens au hasard.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+        {data.tentativesInconnues > 10 && (
+          <Section
+            tone="yellow"
+            icon={<TriangleAlert className="size-5" />}
+            title={`${data.tentativesInconnues} tentatives sur des cartes inexistantes`}
+            subtitle="Sur 24 heures : possible tentative de deviner des jetons au hasard"
+          />
+        )}
+      </div>
+    </>
   );
 }
