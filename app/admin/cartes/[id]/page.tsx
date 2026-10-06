@@ -103,7 +103,7 @@ export default function CarteDetailPage({
     const data: Detail = await res.json();
     setCard(data);
     setQr(
-      await QRCode.toDataURL(`${window.location.origin}/v/${data.token}`, {
+      await QRCode.toDataURL(`${(process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(/\/$/, "")}/v/${data.token}`, {
         width: 320,
         margin: 1,
       })

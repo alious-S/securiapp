@@ -110,7 +110,7 @@ export default function GenerateurPage() {
       const agent = await res.json();
       const carte = agent.cards[0];
       const qr = await QRCode.toDataURL(
-        `${window.location.origin}/v/${carte.token}`,
+        `${(process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(/\/$/, "")}/v/${carte.token}`,
         { width: 320, margin: 1 }
       );
       setResultat({
