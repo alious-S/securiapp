@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Info, Printer } from "lucide-react";
+import {
+  Calendar,
+  ChevronLeft,
+  Info,
+  MapPin,
+  Printer,
+  ShieldCheck,
+} from "lucide-react";
 import { Pill, btnPrimary, chip, cn } from "@/components/admin/ui";
 
 type Props = {
@@ -27,6 +34,43 @@ const modes: { value: Mode; label: string }[] = [
   { value: "recto", label: "Recto seul" },
   { value: "verso", label: "Verso seul" },
 ];
+
+const VERT_FONCE = "#11512f";
+const VERT = "#1f8359";
+const VERT_CLAIR = "#55b98a";
+
+// Le texte rétrécit selon la longueur pour ne jamais être coupé
+const tailleNom = (n: string) =>
+  n.length <= 9 ? 13 : n.length <= 12 ? 11 : n.length <= 15 ? 9.5 : n.length <= 19 ? 8 : 7;
+const taillePrenom = (p: string) =>
+  p.length <= 14 ? 9 : p.length <= 20 ? 7.5 : 6.5;
+
+function Bandes({ face }: { face: "recto" | "verso" }) {
+  return (
+    <svg
+      viewBox="0 0 85.6 53.98"
+      preserveAspectRatio="none"
+      aria-hidden
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+    >
+      {face === "recto" ? (
+        <>
+          <line x1="39" y1="-3" x2="5" y2="57" stroke={VERT_FONCE} strokeWidth="5.2" />
+          <line x1="47" y1="-3" x2="13" y2="57" stroke={VERT_CLAIR} strokeWidth="1.1" />
+          <line x1="42" y1="-4" x2="92" y2="13.5" stroke={VERT_CLAIR} strokeWidth="3.6" />
+          <line x1="52" y1="-5" x2="94" y2="9" stroke={VERT} strokeWidth="1.2" />
+        </>
+      ) : (
+        <>
+          <line x1="56" y1="-4" x2="98" y2="13" stroke={VERT_CLAIR} strokeWidth="3.6" />
+          <line x1="66" y1="-5" x2="100" y2="9" stroke={VERT} strokeWidth="1.2" />
+          <line x1="-4" y1="43" x2="18" y2="57" stroke={VERT_FONCE} strokeWidth="5.2" />
+          <line x1="-4" y1="49" x2="10" y2="58" stroke={VERT_CLAIR} strokeWidth="1.1" />
+        </>
+      )}
+    </svg>
+  );
+}
 
 export default function CartePrint(p: Props) {
   const [mode, setMode] = useState<Mode>("tous");
@@ -95,7 +139,7 @@ export default function CartePrint(p: Props) {
       {/* Cartes */}
       <div className="carte-zoom mx-auto w-fit print:mx-0">
         <div className="flex flex-col gap-4 print:block">
-          {/* RECTO */}
+          {/* ───────────── RECTO ───────────── */}
           <div
             className={cn(
               face,
@@ -103,77 +147,330 @@ export default function CartePrint(p: Props) {
               mode === "verso" && "print:hidden"
             )}
           >
-            <div className="flex h-[11mm] items-center justify-between bg-[#11512f] px-[4mm] text-white">
-              <span className="max-w-[48mm] truncate text-[7pt] font-semibold uppercase tracking-wide">
+            <Bandes face="recto" />
+
+            {/* Anneau blanc puis photo */}
+            <div
+              style={{
+                position: "absolute",
+                left: "7.3mm",
+                top: "13.3mm",
+                width: "28.4mm",
+                height: "28.4mm",
+                borderRadius: "50%",
+                background: "#fff",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: "9.5mm",
+                top: "15.5mm",
+                width: "24mm",
+                height: "24mm",
+                borderRadius: "50%",
+                overflow: "hidden",
+                background: "#d8eee1",
+              }}
+            >
+              {p.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={p.photoUrl}
+                  alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    placeItems: "center",
+                    width: "100%",
+                    height: "100%",
+                    fontSize: "18pt",
+                    fontWeight: 700,
+                    color: VERT_FONCE,
+                  }}
+                >
+                  {p.prenom[0]}
+                  {p.nom[0]}
+                </div>
+              )}
+            </div>
+
+            {/* Identité */}
+            <div
+              style={{
+                position: "absolute",
+                left: "38.5mm",
+                top: "15.2mm",
+                width: "43mm",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "4.6pt",
+                  letterSpacing: "0.22em",
+                  fontWeight: 600,
+                  color: VERT,
+                  textTransform: "uppercase",
+                  lineHeight: 1,
+                }}
+              >
+                Agent de sécurité
+              </div>
+              <div
+                style={{
+                  marginTop: "1.3mm",
+                  fontSize: `${tailleNom(p.nom)}pt`,
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  lineHeight: 1.1,
+                  letterSpacing: "-0.01em",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {p.nom}
+              </div>
+              <div
+                style={{
+                  marginTop: "0.5mm",
+                  fontSize: `${taillePrenom(p.prenom)}pt`,
+                  fontWeight: 500,
+                  lineHeight: 1.2,
+                  color: "#2c3a32",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {p.prenom}
+              </div>
+              <div
+                style={{
+                  marginTop: "2mm",
+                  display: "inline-block",
+                  background: "#eef7f1",
+                  color: VERT_FONCE,
+                  fontSize: "7pt",
+                  fontWeight: 700,
+                  padding: "0.5mm 2.2mm",
+                  borderRadius: "999px",
+                  lineHeight: 1.3,
+                }}
+              >
+                {p.matricule}
+              </div>
+            </div>
+
+            {/* Agence + validité */}
+            <div
+              style={{
+                position: "absolute",
+                left: "38.5mm",
+                top: "35.3mm",
+                width: "43mm",
+                fontSize: "6.2pt",
+                lineHeight: 1.2,
+                color: "#2c3a32",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "1.4mm" }}>
+                <MapPin
+                  style={{ width: "2.6mm", height: "2.6mm", flex: "none", color: VERT }}
+                  strokeWidth={2}
+                />
+                <span
+                  style={{
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {p.agence}
+                </span>
+              </div>
+              <div
+                style={{
+                  marginTop: "1.2mm",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1.4mm",
+                }}
+              >
+                <Calendar
+                  style={{ width: "2.6mm", height: "2.6mm", flex: "none", color: VERT }}
+                  strokeWidth={2}
+                />
+                <span style={{ whiteSpace: "nowrap" }}>{p.validite}</span>
+              </div>
+            </div>
+
+            {/* Pied : logo */}
+            <div
+              style={{
+                position: "absolute",
+                left: "38.5mm",
+                right: "4mm",
+                bottom: "3.2mm",
+                display: "flex",
+                alignItems: "center",
+                gap: "1.6mm",
+                borderTop: "0.2mm solid #e5e8e3",
+                paddingTop: "1.6mm",
+              }}
+            >
+              <div
+                style={{
+                  width: "4.4mm",
+                  height: "4.4mm",
+                  borderRadius: "1.2mm",
+                  background: VERT_FONCE,
+                  display: "grid",
+                  placeItems: "center",
+                  flex: "none",
+                }}
+              >
+                <ShieldCheck
+                  style={{ width: "2.7mm", height: "2.7mm", color: "#fff" }}
+                  strokeWidth={2.2}
+                />
+              </div>
+              <span
+                style={{
+                  fontSize: "6.5pt",
+                  fontWeight: 700,
+                  color: VERT_FONCE,
+                  letterSpacing: "-0.01em",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
                 {p.organisation}
               </span>
-              <span className="text-[5pt] font-medium uppercase tracking-[0.15em] opacity-80">
-                Agent de sécurité
+              <span
+                style={{
+                  marginLeft: "auto",
+                  fontSize: "4.4pt",
+                  color: "#7a857e",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                QR code au verso
               </span>
-            </div>
-
-            <div className="flex gap-[4mm] px-[4mm] pt-[4mm]">
-              <div className="h-[28mm] w-[22mm] shrink-0 overflow-hidden rounded-[1.5mm] bg-[#d8eee1]">
-                {p.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={p.photoUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="grid h-full w-full place-items-center text-[16pt] font-bold text-[#11512f]">
-                    {p.prenom[0]}
-                    {p.nom[0]}
-                  </div>
-                )}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[7pt] text-[#7a857e]">{p.prenom}</p>
-                <p className="break-words text-[12pt] font-bold uppercase leading-tight">
-                  {p.nom}
-                </p>
-                <span className="mt-[2mm] inline-block rounded-full bg-[#eef7f1] px-[2mm] py-[0.4mm] text-[8pt] font-bold text-[#11512f]">
-                  {p.matricule}
-                </span>
-                <p className="mt-[2.5mm] text-[5pt] uppercase tracking-wider text-[#7a857e]">
-                  Agence
-                </p>
-                <p className="truncate text-[8pt] font-semibold">{p.agence}</p>
-              </div>
-            </div>
-
-            <div className="absolute inset-x-0 bottom-0 flex h-[6mm] items-center justify-between bg-[#eef7f1] px-[4mm] text-[5.5pt] text-[#11512f]">
-              <span className="font-medium">{p.validite}</span>
-              <span className="opacity-70">QR code au verso</span>
             </div>
           </div>
 
-          {/* VERSO */}
+          {/* ───────────── VERSO ───────────── */}
           <div className={cn(face, mode === "recto" && "print:hidden")}>
-            <div className="h-[3mm] bg-[#11512f]" />
-            <div className="flex h-[44mm] items-center gap-[5mm] px-[5mm]">
-              <div className="size-[32mm] shrink-0 rounded-[1.5mm] bg-white p-[1mm] ring-1 ring-black/10">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.qr} alt="QR code" className="h-full w-full" />
+            <Bandes face="verso" />
+
+            <div
+              style={{
+                position: "absolute",
+                left: "6mm",
+                top: "8mm",
+                width: "33mm",
+                height: "33mm",
+                background: "#fff",
+                borderRadius: "2.2mm",
+                padding: "1.2mm",
+                boxShadow:
+                  "0 0 0 0.25mm #d8eee1, 0 0.6mm 1.6mm rgba(17,81,47,0.18)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={p.qr}
+                alt="QR code"
+                style={{ width: "100%", height: "100%", display: "block" }}
+              />
+            </div>
+
+            <div
+              style={{
+                position: "absolute",
+                left: "44mm",
+                top: "16mm",
+                width: "37.5mm",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "4.6pt",
+                  letterSpacing: "0.22em",
+                  fontWeight: 600,
+                  color: VERT,
+                  textTransform: "uppercase",
+                  lineHeight: 1,
+                }}
+              >
+                Vérification
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[9pt] font-bold leading-tight">
-                  Vérifiez cette carte
-                </p>
-                <p className="mt-[1.5mm] text-[6pt] leading-snug text-[#4a564f]">
-                  Scannez le QR code avec l’appareil photo de votre téléphone
-                  pour confirmer l’identité de l’agent.
-                </p>
-                <p className="mt-[2mm] text-[5.5pt] font-semibold leading-snug text-[#b42318]">
-                  Une carte « invalide » ne doit pas être acceptée.
-                </p>
+              <div
+                style={{
+                  marginTop: "1.3mm",
+                  fontSize: "9.5pt",
+                  fontWeight: 800,
+                  lineHeight: 1.1,
+                }}
+              >
+                Scannez pour vérifier
+              </div>
+              <div
+                style={{
+                  marginTop: "1.6mm",
+                  fontSize: "5.6pt",
+                  lineHeight: 1.4,
+                  color: "#4a564f",
+                }}
+              >
+                Avec l’appareil photo de votre téléphone, confirmez l’identité
+                de l’agent.
+              </div>
+              <div
+                style={{
+                  marginTop: "1.8mm",
+                  fontSize: "5.2pt",
+                  fontWeight: 700,
+                  lineHeight: 1.3,
+                  color: "#b42318",
+                }}
+              >
+                Carte « invalide » = ne pas l’accepter.
               </div>
             </div>
-            <div className="absolute inset-x-0 bottom-0 flex h-[6mm] items-center justify-between bg-[#eef7f1] px-[5mm] text-[5pt] text-[#11512f]">
-              <span className="font-medium">{p.organisation}</span>
-              <span className="opacity-70">{host}</span>
+
+            <div
+              style={{
+                position: "absolute",
+                left: "19mm",
+                right: "6mm",
+                bottom: "3.2mm",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "2mm",
+                fontSize: "4.6pt",
+                color: "#7a857e",
+                borderTop: "0.2mm solid #e5e8e3",
+                paddingTop: "1.4mm",
+              }}
+            >
+              <span
+                style={{
+                  fontWeight: 700,
+                  color: VERT_FONCE,
+                  fontSize: "5.6pt",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {p.organisation}
+              </span>
+              <span style={{ whiteSpace: "nowrap" }}>{host}</span>
             </div>
           </div>
         </div>
