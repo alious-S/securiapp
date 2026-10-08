@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import {
@@ -20,9 +20,15 @@ import {
   btnMuted,
   btnPrimary,
   btnSoft,
+  chip,
   inputClass,
 } from "@/components/admin/ui";
-import { Fira_Code } from "next/font/google";
+
+const siteUrl = () =>
+  (process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(
+    /\/$/,
+    ""
+  );
 
 /** Recadre en carré et compresse la photo (évite les envois trop lourds). */
 async function compresserImage(file: File, taille = 480): Promise<string> {
@@ -67,20 +73,49 @@ function Champ({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-medium text-muted">{label}</span>
+      <span className="mb-1.5 block text-xs font-medium text-muted">
+        {label}
+      </span>
       {children}
     </label>
   );
 }
 
+const FONCTION_DEFAUT = "Agent de sécurité";
+
 export default function GenerateurPage() {
-  const [form, setForm] = useState({ nom: "", prenom: "", agence: "" });
+  const [form, setForm] = useState({
+    nom: "",
+    prenom: "",
+    agence: "",
+    fonction: FONCTION_DEFAUT,
+  });
+  const [sexe, setSexe] = useState<"" | "M" | "F">("");
+  const [expiration, setExpiration] = useState("");
+  const [expirationDefaut, setExpirationDefaut] = useState("");
+  const [duree, setDuree] = useState(365);
   const [photo, setPhoto] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [resultat, setResultat] = useState<Resultat | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+
+  // Date d'expiration proposée = aujourd'hui + durée des Paramètres
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((s) => {
+        const jours = s?.dureeValiditeJours ?? 365;
+        const d = new Date();
+        d.setDate(d.getDate() + jours);
+        const iso = d.toISOString().slice(0, 10);
+        setDuree(jours);
+        setExpirationDefaut(iso);
+        setExpiration(iso);
+      });
+  }, []);
 
   async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -96,13 +131,22 @@ export default function GenerateurPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!sexe) {
+      setErreur("Choisissez le sexe de l’agent.");
+      return;
+    }
     setLoading(true);
     setErreur(null);
     try {
       const res = await fetch("/api/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, photoUrl: photo }),
+        body: JSON.stringify({
+          ...form,
+          sexe,
+          expireAt: expiration,
+          photoUrl: photo,
+        }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -110,10 +154,10 @@ export default function GenerateurPage() {
       }
       const agent = await res.json();
       const carte = agent.cards[0];
-      const qr = await QRCode.toDataURL(
-        `${(process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(/\/$/, "")}/v/${carte.token}`,
-        { width: 320, margin: 1 }
-      );
+      const qr = await QRCode.toDataURL(`${siteUrl()}/v/${carte.token}`, {
+        width: 320,
+        margin: 1,
+      });
       setResultat({
         matricule: agent.matricule,
         token: carte.token,
@@ -122,7 +166,9 @@ export default function GenerateurPage() {
         prenom: agent.prenom,
         nom: agent.nom,
       });
-      setForm({ nom: "", prenom: "", agence: "" });
+      setForm({ nom: "", prenom: "", agence: "", fonction: FONCTION_DEFAUT });
+      setSexe("");
+      setExpiration(expirationDefaut);
       setPhoto(null);
     } catch (err) {
       setErreur(err instanceof Error ? err.message : "Une erreur est survenue.");
@@ -140,7 +186,10 @@ export default function GenerateurPage() {
 
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
-          <CardTitle title="Nouvel agent" subtitle="Renseignez les informations de l’agent." />
+          <CardTitle
+            title="Nouvel agent"
+            subtitle="Renseignez les informations de l’agent."
+          />
           <form onSubmit={onSubmit} className="space-y-5">
             <div className="flex items-center gap-4">
               <Avatar
@@ -211,19 +260,69 @@ export default function GenerateurPage() {
                 />
               </Champ>
             </div>
-            <Champ label="Agence">
+
+            <div>
+              <span className="mb-1.5 block text-xs font-medium text-muted">
+                Sexe
+              </span>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSexe("M")}
+                  className={chip(sexe === "M")}
+                >
+                  Homme
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSexe("F")}
+                  className={chip(sexe === "F")}
+                >
+                  Femme
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Champ label="Fonction">
+                <input
+                  required
+                  value={form.fonction}
+                  onChange={(e) =>
+                    setForm({ ...form, fonction: e.target.value })
+                  }
+                  className={inputClass}
+                  placeholder={FONCTION_DEFAUT}
+                />
+              </Champ>
+              <Champ label="Agence">
+                <input
+                  required
+                  value={form.agence}
+                  onChange={(e) => setForm({ ...form, agence: e.target.value })}
+                  className={inputClass}
+                  placeholder="Bamako Centre"
+                />
+              </Champ>
+            </div>
+
+            <Champ label="Date d’expiration de la carte">
               <input
+                type="date"
                 required
-                value={form.agence}
-                onChange={(e) => setForm({ ...form, agence: e.target.value })}
-                className={inputClass}
-                placeholder="Bamako Centre"
+                value={expiration}
+                onChange={(e) => setExpiration(e.target.value)}
+                className={`${inputClass} sm:max-w-[220px]`}
               />
+              <span className="mt-1.5 block text-xs text-muted">
+                Proposée : {duree} jours (réglable dans Paramètres).
+              </span>
             </Champ>
 
             <div className="flex items-start gap-2.5 rounded-2xl bg-brand-50 px-4 py-3 text-xs text-brand-800">
               <Info className="mt-0.5 size-4 shrink-0" />
-              Le matricule est attribué automatiquement (AG-XX) à la création.
+              Le matricule (AG-XX) et la date d’émission sont attribués
+              automatiquement à la création.
             </div>
 
             {erreur && (
@@ -232,7 +331,11 @@ export default function GenerateurPage() {
               </p>
             )}
 
-            <button type="submit" disabled={loading} className={`${btnPrimary} w-full`}>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`${btnPrimary} w-full`}
+            >
               {loading ? "Création…" : "Créer l’agent et sa carte"}
             </button>
           </form>
@@ -263,7 +366,10 @@ export default function GenerateurPage() {
                 >
                   <Printer className="size-4" /> Imprimer la carte
                 </Link>
-                <Link href={`/admin/cartes/${resultat.cardId}`} className={btnSoft}>
+                <Link
+                  href={`/admin/cartes/${resultat.cardId}`}
+                  className={btnSoft}
+                >
                   Voir la fiche
                 </Link>
                 <button onClick={() => setResultat(null)} className={btnMuted}>
@@ -289,6 +395,10 @@ export default function GenerateurPage() {
                   )}
                 </p>
                 <p className="mt-0.5 text-sm text-muted">
+                  {form.fonction || FONCTION_DEFAUT}
+                </p>
+                <p className="mt-0.5 text-xs text-muted">
+                  {sexe === "M" ? "Homme" : sexe === "F" ? "Femme" : "Sexe"} ·{" "}
                   {form.agence || "Agence"}
                 </p>
                 <span className="mt-4 rounded-full bg-white px-4 py-1.5 text-xs font-medium text-muted ring-1 ring-line">

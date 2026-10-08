@@ -1,13 +1,15 @@
 import { headers } from "next/headers";
 import {
+  Building2,
   Calendar,
+  CalendarClock,
   Check,
-  MapPin,
   ShieldCheck,
   ShieldX,
   X,
 } from "lucide-react";
 import { prisma } from "@/lib/db";
+import { formatDateFR } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +27,9 @@ function Ligne({
   return (
     <div className="flex items-center gap-3 py-3 text-sm">
       <span className="shrink-0 text-[#1f8359]">{icone}</span>
-      <span className="text-[#7a857e]">{label}</span>
+      <span className="shrink-0 text-[#7a857e]">{label}</span>
       <span
-        className={`ml-auto text-right font-semibold ${
+        className={`ml-auto min-w-0 break-words text-right font-semibold ${
           accent ? "text-emerald-700" : "text-[#101a14]"
         }`}
       >
@@ -48,6 +50,8 @@ export default async function VerifyPage({
     where: { token },
     include: { agent: true },
   });
+  const settings = await prisma.settings.findUnique({ where: { id: "main" } });
+  const entreprise = settings?.nomOrganisation ?? "SecuriApp";
 
   const expiree = !!card?.expireAt && card.expireAt < new Date();
   const valide =
@@ -83,11 +87,6 @@ export default async function VerifyPage({
     timeStyle: "short",
     timeZone: "Africa/Bamako",
   });
-
-  const validiteTexte =
-    card?.expireAt
-      ? `Jusqu’au ${card.expireAt.toLocaleDateString("fr-FR")}`
-      : "Sans expiration";
 
   return (
     <div className="flex min-h-dvh flex-col items-center bg-[#eceee9] px-4 pb-8 pt-6">
@@ -183,7 +182,7 @@ export default async function VerifyPage({
                 {card.agent.prenom} {card.agent.nom}
               </h1>
               <p className="mt-1 text-[13px] text-[#7a857e]">
-                Agent de sécurité
+                {card.agent.fonction}
               </p>
               <span className="mt-3 inline-block rounded-full bg-[#eef7f1] px-3.5 py-1.5 text-[13px] font-bold text-[#11512f]">
                 {card.agent.matricule}
@@ -191,14 +190,23 @@ export default async function VerifyPage({
 
               <div className="mt-5 divide-y divide-[#e5e8e3] rounded-[20px] bg-[#eceee9]/60 px-4 text-left">
                 <Ligne
-                  icone={<MapPin className="size-[18px]" />}
-                  label="Agence"
-                  valeur={card.agent.agence}
+                  icone={<Building2 className="size-[18px]" />}
+                  label="Entreprise"
+                  valeur={entreprise}
                 />
                 <Ligne
                   icone={<Calendar className="size-[18px]" />}
-                  label="Validité"
-                  valeur={validiteTexte}
+                  label="Émise le"
+                  valeur={formatDateFR(card.issuedAt ?? card.createdAt)}
+                />
+                <Ligne
+                  icone={<CalendarClock className="size-[18px]" />}
+                  label="Expire le"
+                  valeur={
+                    card.expireAt
+                      ? formatDateFR(card.expireAt)
+                      : "Sans expiration"
+                  }
                 />
                 <Ligne
                   icone={<ShieldCheck className="size-[18px]" />}

@@ -2,14 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import {
-  Calendar,
-  ChevronLeft,
-  Info,
-  MapPin,
-  Printer,
-  ShieldCheck,
-} from "lucide-react";
+import { ChevronLeft, Info, Printer, ShieldCheck } from "lucide-react";
 import { Pill, btnPrimary, chip, cn } from "@/components/admin/ui";
 
 type Props = {
@@ -17,12 +10,13 @@ type Props = {
   prenom: string;
   nom: string;
   matricule: string;
-  agence: string;
+  sexe: string;
+  fonction: string;
+  entreprise: string;
+  emission: string;
+  expiration: string;
   photoUrl: string | null;
-  organisation: string;
-  validite: string;
   qr: string;
-  lien: string;
   etatLabel: string;
   etatTone: "green" | "amber" | "rose" | "slate";
 };
@@ -40,47 +34,233 @@ const VERT = "#1f8359";
 const VERT_CLAIR = "#55b98a";
 
 // Le texte rétrécit selon la longueur pour ne jamais être coupé
-const tailleNom = (n: string) =>
-  n.length <= 9 ? 13 : n.length <= 12 ? 11 : n.length <= 15 ? 9.5 : n.length <= 19 ? 8 : 7;
-const taillePrenom = (p: string) =>
-  p.length <= 14 ? 9 : p.length <= 20 ? 7.5 : 6.5;
+const tNom = (s: string) =>
+  s.length <= 12 ? 10 : s.length <= 16 ? 8.5 : s.length <= 20 ? 7.5 : 6.5;
+const tPre = (s: string) => (s.length <= 16 ? 8 : s.length <= 22 ? 7 : 6.2);
+const tTxt = (s: string) => (s.length <= 30 ? 7 : s.length <= 38 ? 6.2 : 5.6);
 
-function Bandes({ face }: { face: "recto" | "verso" }) {
+function Champ({
+  label,
+  valeur,
+  taille,
+  style,
+  majuscules,
+}: {
+  label: string;
+  valeur: string;
+  taille: number;
+  style?: React.CSSProperties;
+  majuscules?: boolean;
+}) {
   return (
-    <svg
-      viewBox="0 0 85.6 53.98"
-      preserveAspectRatio="none"
-      aria-hidden
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-    >
-      {face === "recto" ? (
-        <>
-          <line x1="39" y1="-3" x2="5" y2="57" stroke={VERT_FONCE} strokeWidth="5.2" />
-          <line x1="47" y1="-3" x2="13" y2="57" stroke={VERT_CLAIR} strokeWidth="1.1" />
-          <line x1="42" y1="-4" x2="92" y2="13.5" stroke={VERT_CLAIR} strokeWidth="3.6" />
-          <line x1="52" y1="-5" x2="94" y2="9" stroke={VERT} strokeWidth="1.2" />
-        </>
-      ) : (
-        <>
-          <line x1="56" y1="-4" x2="98" y2="13" stroke={VERT_CLAIR} strokeWidth="3.6" />
-          <line x1="66" y1="-5" x2="100" y2="9" stroke={VERT} strokeWidth="1.2" />
-          <line x1="-4" y1="43" x2="18" y2="57" stroke={VERT_FONCE} strokeWidth="5.2" />
-          <line x1="-4" y1="49" x2="10" y2="58" stroke={VERT_CLAIR} strokeWidth="1.1" />
-        </>
+    <div style={{ minWidth: 0, ...style }}>
+      <div
+        style={{
+          fontSize: "4pt",
+          letterSpacing: "0.12em",
+          color: "#7a857e",
+          fontWeight: 600,
+          textTransform: "uppercase",
+          lineHeight: 1,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          marginTop: "0.5mm",
+          fontSize: `${taille}pt`,
+          fontWeight: 700,
+          lineHeight: 1.2,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          textTransform: majuscules ? "uppercase" : undefined,
+        }}
+      >
+        {valeur}
+      </div>
+    </div>
+  );
+}
+
+/** Drapeau, République du Mali, emblème et bannière avec le nom de l'application */
+function Entete({
+  logoOk,
+  onLogoError,
+}: {
+  logoOk: boolean;
+  onLogoError: () => void;
+}) {
+  return (
+    <>
+      <div
+        style={{
+          position: "absolute",
+          left: "4mm",
+          top: "2.4mm",
+          width: "9mm",
+          height: "6mm",
+          display: "flex",
+          borderRadius: "0.7mm",
+          overflow: "hidden",
+        }}
+      >
+        <span style={{ flex: 1, background: "#14b53a" }} />
+        <span style={{ flex: 1, background: "#fcd116" }} />
+        <span style={{ flex: 1, background: "#ce1126" }} />
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          left: "15mm",
+          right: "16.5mm",
+          top: "2.3mm",
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "7pt",
+            fontWeight: 800,
+            letterSpacing: "0.07em",
+            lineHeight: 1.1,
+          }}
+        >
+          RÉPUBLIQUE DU MALI
+        </div>
+        <div
+          style={{
+            marginTop: "0.5mm",
+            fontSize: "4.2pt",
+            letterSpacing: "0.14em",
+            color: "#7a857e",
+            fontWeight: 600,
+            lineHeight: 1,
+          }}
+        >
+          UN PEUPLE – UN BUT – UNE FOI
+        </div>
+      </div>
+
+      {logoOk && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="/logo-mali.png"
+          alt=""
+          onError={onLogoError}
+          ref={(el) => {
+            if (el && el.complete && el.naturalWidth === 0) onLogoError();
+          }}
+          style={{
+            position: "absolute",
+            right: "4mm",
+            top: "1.6mm",
+            width: "9mm",
+            height: "9mm",
+            objectFit: "contain",
+          }}
+        />
       )}
-    </svg>
+
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: "11.4mm",
+          height: "5.6mm",
+          background: `linear-gradient(90deg, ${VERT_FONCE}, ${VERT})`,
+          overflow: "hidden",
+        }}
+      >
+        <svg
+          viewBox="0 0 85.6 5.6"
+          preserveAspectRatio="none"
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+          }}
+        >
+          <line x1="58" y1="7" x2="64" y2="-2" stroke={VERT_CLAIR} strokeWidth="2.4" />
+          <line x1="66" y1="7" x2="72" y2="-2" stroke={VERT_CLAIR} strokeWidth="0.8" />
+        </svg>
+        <div
+          style={{
+            position: "absolute",
+            left: "4mm",
+            top: 0,
+            bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: "1.4mm",
+            color: "#fff",
+          }}
+        >
+          <div
+            style={{
+              width: "3.4mm",
+              height: "3.4mm",
+              borderRadius: "0.9mm",
+              background: "#fff",
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            <ShieldCheck
+              style={{ width: "2.3mm", height: "2.3mm", color: VERT_FONCE }}
+              strokeWidth={2.4}
+            />
+          </div>
+          <span
+            style={{ fontSize: "6.6pt", fontWeight: 800, letterSpacing: "-0.01em" }}
+          >
+            SecuriApp
+          </span>
+        </div>
+        <div
+          style={{
+            position: "absolute",
+            right: "4mm",
+            top: 0,
+            bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            fontSize: "4.5pt",
+            fontWeight: 700,
+            letterSpacing: "0.16em",
+            color: "#fff",
+          }}
+        >
+          CARTE PROFESSIONNELLE
+        </div>
+      </div>
+    </>
+  );
+}
+
+function BarreBas() {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: "1.6mm",
+        background: `linear-gradient(90deg, ${VERT_FONCE}, ${VERT_CLAIR})`,
+      }}
+    />
   );
 }
 
 export default function CartePrint(p: Props) {
   const [mode, setMode] = useState<Mode>("tous");
-  const host = (() => {
-    try {
-      return new URL(p.lien).host;
-    } catch {
-      return "";
-    }
-  })();
+  const [logoOk, setLogoOk] = useState(true);
 
   const face =
     "carte-face relative h-[53.98mm] w-[85.6mm] shrink-0 overflow-hidden rounded-[3.2mm] bg-white text-[#101a14] shadow-lg ring-1 ring-black/10 print:h-[53.9mm] print:rounded-none print:shadow-none print:ring-0";
@@ -147,29 +327,19 @@ export default function CartePrint(p: Props) {
               mode === "verso" && "print:hidden"
             )}
           >
-            <Bandes face="recto" />
+            <Entete logoOk={logoOk} onLogoError={() => setLogoOk(false)} />
 
-            {/* Anneau blanc puis photo */}
+            {/* Photo */}
             <div
               style={{
                 position: "absolute",
-                left: "7.3mm",
-                top: "13.3mm",
-                width: "28.4mm",
-                height: "28.4mm",
-                borderRadius: "50%",
-                background: "#fff",
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: "9.5mm",
-                top: "15.5mm",
-                width: "24mm",
-                height: "24mm",
-                borderRadius: "50%",
+                left: "4mm",
+                top: "19.6mm",
+                width: "22mm",
+                height: "26.5mm",
+                borderRadius: "1.6mm",
                 overflow: "hidden",
+                border: `0.45mm solid ${VERT}`,
                 background: "#d8eee1",
               }}
             >
@@ -198,186 +368,93 @@ export default function CartePrint(p: Props) {
               )}
             </div>
 
-            {/* Identité */}
+            {/* Matricule */}
             <div
               style={{
                 position: "absolute",
-                left: "38.5mm",
-                top: "15.2mm",
-                width: "43mm",
+                left: "4mm",
+                top: "47.3mm",
+                width: "22mm",
+                height: "4.2mm",
+                borderRadius: "999px",
+                background: "#eef7f1",
+                color: VERT_FONCE,
+                fontSize: "7pt",
+                fontWeight: 800,
+                display: "grid",
+                placeItems: "center",
+                lineHeight: 1,
               }}
             >
-              <div
-                style={{
-                  fontSize: "4.6pt",
-                  letterSpacing: "0.22em",
-                  fontWeight: 600,
-                  color: VERT,
-                  textTransform: "uppercase",
-                  lineHeight: 1,
-                }}
-              >
-                Agent de sécurité
-              </div>
-              <div
-                style={{
-                  marginTop: "1.3mm",
-                  fontSize: `${tailleNom(p.nom)}pt`,
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  lineHeight: 1.1,
-                  letterSpacing: "-0.01em",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {p.nom}
-              </div>
-              <div
-                style={{
-                  marginTop: "0.5mm",
-                  fontSize: `${taillePrenom(p.prenom)}pt`,
-                  fontWeight: 500,
-                  lineHeight: 1.2,
-                  color: "#2c3a32",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {p.prenom}
-              </div>
-              <div
-                style={{
-                  marginTop: "2mm",
-                  display: "inline-block",
-                  background: "#eef7f1",
-                  color: VERT_FONCE,
-                  fontSize: "7pt",
-                  fontWeight: 700,
-                  padding: "0.5mm 2.2mm",
-                  borderRadius: "999px",
-                  lineHeight: 1.3,
-                }}
-              >
-                {p.matricule}
-              </div>
+              {p.matricule}
             </div>
 
-            {/* Agence + validité */}
+            {/* Champs */}
             <div
               style={{
                 position: "absolute",
-                left: "38.5mm",
-                top: "35.3mm",
-                width: "43mm",
-                fontSize: "6.2pt",
-                lineHeight: 1.2,
-                color: "#2c3a32",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "1.4mm" }}>
-                <MapPin
-                  style={{ width: "2.6mm", height: "2.6mm", flex: "none", color: VERT }}
-                  strokeWidth={2}
-                />
-                <span
-                  style={{
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {p.agence}
-                </span>
-              </div>
-              <div
-                style={{
-                  marginTop: "1.2mm",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "1.4mm",
-                }}
-              >
-                <Calendar
-                  style={{ width: "2.6mm", height: "2.6mm", flex: "none", color: VERT }}
-                  strokeWidth={2}
-                />
-                <span style={{ whiteSpace: "nowrap" }}>{p.validite}</span>
-              </div>
-            </div>
-
-            {/* Pied : logo */}
-            <div
-              style={{
-                position: "absolute",
-                left: "38.5mm",
-                right: "4mm",
-                bottom: "3.2mm",
+                left: "29.5mm",
+                top: "19.4mm",
+                width: "52.5mm",
                 display: "flex",
-                alignItems: "center",
-                gap: "1.6mm",
-                borderTop: "0.2mm solid #e5e8e3",
-                paddingTop: "1.6mm",
+                flexDirection: "column",
+                gap: "1.3mm",
               }}
             >
-              <div
-                style={{
-                  width: "4.4mm",
-                  height: "4.4mm",
-                  borderRadius: "1.2mm",
-                  background: VERT_FONCE,
-                  display: "grid",
-                  placeItems: "center",
-                  flex: "none",
-                }}
-              >
-                <ShieldCheck
-                  style={{ width: "2.7mm", height: "2.7mm", color: "#fff" }}
-                  strokeWidth={2.2}
+              <Champ label="Nom" valeur={p.nom} taille={tNom(p.nom)} majuscules />
+              <div style={{ display: "flex", gap: "2mm" }}>
+                <Champ
+                  label="Prénom"
+                  valeur={p.prenom}
+                  taille={tPre(p.prenom)}
+                  style={{ flex: 1 }}
+                />
+                <Champ
+                  label="Sexe"
+                  valeur={p.sexe}
+                  taille={7}
+                  style={{ width: "12mm", flex: "none" }}
                 />
               </div>
-              <span
-                style={{
-                  fontSize: "6.5pt",
-                  fontWeight: 700,
-                  color: VERT_FONCE,
-                  letterSpacing: "-0.01em",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {p.organisation}
-              </span>
-              <span
-                style={{
-                  marginLeft: "auto",
-                  fontSize: "4.4pt",
-                  color: "#7a857e",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                QR code au verso
-              </span>
+              <Champ label="Fonction" valeur={p.fonction} taille={tTxt(p.fonction)} />
+              <Champ
+                label="Entreprise"
+                valeur={p.entreprise}
+                taille={tTxt(p.entreprise)}
+              />
+              <div style={{ display: "flex", gap: "2mm" }}>
+                <Champ
+                  label="Émission"
+                  valeur={p.emission}
+                  taille={7}
+                  style={{ flex: 1 }}
+                />
+                <Champ
+                  label="Expiration"
+                  valeur={p.expiration}
+                  taille={7}
+                  style={{ flex: 1 }}
+                />
+              </div>
             </div>
+
+            <BarreBas />
           </div>
 
           {/* ───────────── VERSO ───────────── */}
           <div className={cn(face, mode === "recto" && "print:hidden")}>
-            <Bandes face="verso" />
+            <Entete logoOk={logoOk} onLogoError={() => setLogoOk(false)} />
 
             <div
               style={{
                 position: "absolute",
-                left: "6mm",
-                top: "8mm",
-                width: "33mm",
-                height: "33mm",
+                left: "5mm",
+                top: "20mm",
+                width: "30mm",
+                height: "30mm",
                 background: "#fff",
-                borderRadius: "2.2mm",
-                padding: "1.2mm",
+                borderRadius: "2mm",
+                padding: "1.1mm",
                 boxShadow:
                   "0 0 0 0.25mm #d8eee1, 0 0.6mm 1.6mm rgba(17,81,47,0.18)",
               }}
@@ -393,16 +470,16 @@ export default function CartePrint(p: Props) {
             <div
               style={{
                 position: "absolute",
-                left: "44mm",
-                top: "16mm",
-                width: "37.5mm",
+                left: "40mm",
+                top: "20.6mm",
+                width: "41.5mm",
               }}
             >
               <div
                 style={{
-                  fontSize: "4.6pt",
-                  letterSpacing: "0.22em",
-                  fontWeight: 600,
+                  fontSize: "4.2pt",
+                  letterSpacing: "0.2em",
+                  fontWeight: 700,
                   color: VERT,
                   textTransform: "uppercase",
                   lineHeight: 1,
@@ -412,8 +489,8 @@ export default function CartePrint(p: Props) {
               </div>
               <div
                 style={{
-                  marginTop: "1.3mm",
-                  fontSize: "9.5pt",
+                  marginTop: "1.1mm",
+                  fontSize: "9pt",
                   fontWeight: 800,
                   lineHeight: 1.1,
                 }}
@@ -422,8 +499,8 @@ export default function CartePrint(p: Props) {
               </div>
               <div
                 style={{
-                  marginTop: "1.6mm",
-                  fontSize: "5.6pt",
+                  marginTop: "1.4mm",
+                  fontSize: "5.4pt",
                   lineHeight: 1.4,
                   color: "#4a564f",
                 }}
@@ -433,8 +510,8 @@ export default function CartePrint(p: Props) {
               </div>
               <div
                 style={{
-                  marginTop: "1.8mm",
-                  fontSize: "5.2pt",
+                  marginTop: "1.4mm",
+                  fontSize: "5pt",
                   fontWeight: 700,
                   lineHeight: 1.3,
                   color: "#b42318",
@@ -442,36 +519,22 @@ export default function CartePrint(p: Props) {
               >
                 Carte « invalide » = ne pas l’accepter.
               </div>
-            </div>
-
-            <div
-              style={{
-                position: "absolute",
-                left: "19mm",
-                right: "6mm",
-                bottom: "3.2mm",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "2mm",
-                fontSize: "4.6pt",
-                color: "#7a857e",
-                borderTop: "0.2mm solid #e5e8e3",
-                paddingTop: "1.4mm",
-              }}
-            >
-              <span
+              <div
                 style={{
-                  fontWeight: 700,
-                  color: VERT_FONCE,
-                  fontSize: "5.6pt",
-                  whiteSpace: "nowrap",
+                  marginTop: "2.6mm",
+                  borderTop: "0.2mm solid #e5e8e3",
+                  paddingTop: "1.3mm",
                 }}
               >
-                {p.organisation}
-              </span>
-              <span style={{ whiteSpace: "nowrap" }}>{host}</span>
+                <Champ
+                  label="Délivrée par"
+                  valeur={p.entreprise}
+                  taille={6.6}
+                />
+              </div>
             </div>
+
+            <BarreBas />
           </div>
         </div>
       </div>

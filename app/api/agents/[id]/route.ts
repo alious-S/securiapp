@@ -15,7 +15,6 @@ export async function GET(
     if (!agent) {
       return NextResponse.json({ error: "Agent introuvable" }, { status: 404 });
     }
-
     return NextResponse.json(agent);
   } catch (error) {
     console.error(error);
@@ -31,35 +30,34 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    if (body.actif !== undefined && typeof body.actif !== "boolean") {
-      return NextResponse.json(
-        { error: "Le statut actif doit être un booléen" },
-        { status: 400 }
-      );
+    const data: {
+      actif?: boolean;
+      nom?: string;
+      prenom?: string;
+      agence?: string;
+      fonction?: string;
+      sexe?: string;
+    } = {};
+
+    if (typeof body.actif === "boolean") data.actif = body.actif;
+    for (const k of ["nom", "prenom", "agence", "fonction"] as const) {
+      if (typeof body[k] === "string" && body[k].trim()) {
+        data[k] = body[k].trim();
+      }
+    }
+    if (body.sexe === "M" || body.sexe === "F") data.sexe = body.sexe;
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: "Rien à modifier" }, { status: 400 });
     }
 
     const agent = await prisma.agent.update({
       where: { id },
-      data: {
-        ...(body.actif !== undefined ? { actif: body.actif } : {}),
-        ...(body.nom ? { nom: body.nom } : {}),
-        ...(body.prenom ? { prenom: body.prenom } : {}),
-        ...(body.agence ? { agence: body.agence } : {}),
-      },
+      data,
       include: { cards: true },
     });
-
     return NextResponse.json(agent);
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "P2025"
-    ) {
-      return NextResponse.json({ error: "Agent introuvable" }, { status: 404 });
-    }
-
     console.error(error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }

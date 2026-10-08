@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateSecureToken } from "@/lib/token";
+import { finDeJournee } from "@/lib/dates";
 
 async function genererMatricule(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
@@ -18,15 +19,19 @@ async function genererMatricule(
       if (num > max) max = num;
     }
   }
-
-  const next = max + 1;
-  return `AG-${String(next).padStart(2, "0")}`;
+  return `AG-${String(max + 1).padStart(2, "0")}`;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { nom, prenom, agence, photoUrl } = body;
+    const nom = String(body.nom ?? "").trim();
+    const prenom = String(body.prenom ?? "").trim();
+    const agence = String(body.agence ?? "").trim();
+    const fonction =
+      String(body.fonction ?? "").trim() || "Agent de sécurité";
+    const sexe = body.sexe;
+    const photoUrl = body.photoUrl || null;
 
     if (!nom || !prenom || !agence) {
       return NextResponse.json(
@@ -34,21 +39,45 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (sexe !== "M" && sexe !== "F") {
+      return NextResponse.json(
+        { error: "Choisissez le sexe de l'agent." },
+        { status: 400 }
+      );
+    }
+
+    const settings = await prisma.settings.findUnique({
+      where: { id: "main" },
+    });
+    const duree = settings?.dureeValiditeJours ?? 365;
+    const expiration = body.expireAt
+      ? finDeJournee(body.expireAt)
+      : new Date(Date.now() + duree * 86400000);
+
+    if (!expiration || expiration <= new Date()) {
+      return NextResponse.json(
+        { error: "La date d'expiration doit être dans le futur." },
+        { status: 400 }
+      );
+    }
 
     const agent = await prisma.$transaction(async (tx) => {
       const matricule = await genererMatricule(tx);
-
       return tx.agent.create({
         data: {
           nom,
           prenom,
           matricule,
           agence,
-          photoUrl: photoUrl || null,
+          sexe,
+          fonction,
+          photoUrl,
           cards: {
             create: {
               token: generateSecureToken(),
               statut: "actif",
+              expireAt: expiration,
+              issuedAt: new Date(),
             },
           },
         },

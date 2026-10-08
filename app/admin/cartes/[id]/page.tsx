@@ -34,19 +34,25 @@ import {
   inputClass,
 } from "@/components/admin/ui";
 
+type Agent = {
+  id: string;
+  nom: string;
+  prenom: string;
+  matricule: string;
+  agence: string;
+  photoUrl: string | null;
+  sexe: string | null;
+  fonction: string;
+};
+
 type Detail = {
   id: string;
   token: string;
   statut: string;
   expireAt: string | null;
   createdAt: string;
-  agent: {
-    nom: string;
-    prenom: string;
-    matricule: string;
-    agence: string;
-    photoUrl: string | null;
-  };
+  issuedAt: string | null;
+  agent: Agent;
   logs: { id: string; resultat: string; scannedAt: string }[];
 };
 
@@ -58,6 +64,12 @@ const messages: Record<Action, string> = {
   revoquer: "Carte révoquée",
   renouveler: "Carte renouvelée",
 };
+
+const siteUrl = () =>
+  (process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(
+    /\/$/,
+    ""
+  );
 
 const dateISO = (d: Date) => d.toISOString().slice(0, 10);
 const plusMois = (n: number) => {
@@ -71,12 +83,142 @@ const plusJours = (n: number) => {
   return dateISO(d);
 };
 
-function Info({ label, children }: { label: string; children: React.ReactNode }) {
+function Info({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="min-w-0">
       <p className="text-xs text-muted">{label}</p>
       <div className="mt-1 text-sm font-medium text-ink">{children}</div>
     </div>
+  );
+}
+
+function InfosAgent({
+  agent,
+  onSaved,
+  notify,
+}: {
+  agent: Agent;
+  onSaved: () => Promise<void>;
+  notify: (m: string) => void;
+}) {
+  const [f, setF] = useState({
+    prenom: agent.prenom,
+    nom: agent.nom,
+    fonction: agent.fonction,
+    agence: agent.agence,
+    sexe: agent.sexe ?? "",
+  });
+  const [envoi, setEnvoi] = useState(false);
+
+  async function enregistrer(e: React.FormEvent) {
+    e.preventDefault();
+    setEnvoi(true);
+    try {
+      const res = await fetch(`/api/agents/${agent.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...f, sexe: f.sexe || undefined }),
+      });
+      if (!res.ok) throw new Error();
+      await onSaved();
+      notify("Informations enregistrées");
+    } catch {
+      notify("Enregistrement impossible.");
+    } finally {
+      setEnvoi(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardTitle
+        title="Informations de l’agent"
+        subtitle="Ces informations sont imprimées sur la carte."
+      />
+      <form onSubmit={enregistrer} className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-muted">
+              Prénom
+            </span>
+            <input
+              required
+              value={f.prenom}
+              onChange={(e) => setF({ ...f, prenom: e.target.value })}
+              className={inputClass}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-muted">
+              Nom
+            </span>
+            <input
+              required
+              value={f.nom}
+              onChange={(e) => setF({ ...f, nom: e.target.value })}
+              className={inputClass}
+            />
+          </label>
+        </div>
+
+        <div>
+          <span className="mb-1.5 block text-xs font-medium text-muted">
+            Sexe
+          </span>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setF({ ...f, sexe: "M" })}
+              className={chip(f.sexe === "M")}
+            >
+              Homme
+            </button>
+            <button
+              type="button"
+              onClick={() => setF({ ...f, sexe: "F" })}
+              className={chip(f.sexe === "F")}
+            >
+              Femme
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-muted">
+              Fonction
+            </span>
+            <input
+              required
+              value={f.fonction}
+              onChange={(e) => setF({ ...f, fonction: e.target.value })}
+              className={inputClass}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-muted">
+              Agence
+            </span>
+            <input
+              required
+              value={f.agence}
+              onChange={(e) => setF({ ...f, agence: e.target.value })}
+              className={inputClass}
+            />
+          </label>
+        </div>
+
+        <button type="submit" disabled={envoi} className={btnPrimary}>
+          {envoi ? "Enregistrement…" : "Enregistrer"}
+        </button>
+      </form>
+    </Card>
   );
 }
 
@@ -103,7 +245,7 @@ export default function CarteDetailPage({
     const data: Detail = await res.json();
     setCard(data);
     setQr(
-      await QRCode.toDataURL(`${(process.env.NEXT_PUBLIC_SITE_URL || window.location.origin).replace(/\/$/, "")}/v/${data.token}`, {
+      await QRCode.toDataURL(`${siteUrl()}/v/${data.token}`, {
         width: 320,
         margin: 1,
       })
@@ -142,7 +284,8 @@ export default function CarteDetailPage({
       }),
     });
     if (!res.ok) {
-      afficherToast("Une erreur est survenue.");
+      const d = await res.json().catch(() => ({}));
+      afficherToast(d.error || "Une erreur est survenue.");
       return;
     }
     await charger();
@@ -165,7 +308,10 @@ export default function CarteDetailPage({
     return (
       <Card className="py-12 text-center text-sm text-muted">
         Carte introuvable.{" "}
-        <Link href="/admin/cartes" className="font-medium text-brand-700 hover:underline">
+        <Link
+          href="/admin/cartes"
+          className="font-medium text-brand-700 hover:underline"
+        >
           Retour aux cartes
         </Link>
       </Card>
@@ -200,9 +346,13 @@ export default function CarteDetailPage({
 
       <PageHeader
         title={`${card.agent.prenom} ${card.agent.nom}`}
-        subtitle={`${card.agent.matricule} · ${card.agent.agence}`}
+        subtitle={`${card.agent.matricule} · ${card.agent.fonction}`}
         actions={
-          <Link href={`/carte/${card.token}`} target="_blank" className={btnPrimary}>
+          <Link
+            href={`/carte/${card.token}`}
+            target="_blank"
+            className={btnPrimary}
+          >
             <Printer className="size-4" /> Imprimer la carte
           </Link>
         }
@@ -226,16 +376,23 @@ export default function CarteDetailPage({
                   <Pill tone={etat.tone}>{etat.label}</Pill>
                 </div>
                 <p className="mt-0.5 text-sm text-muted">
-                  Matricule {card.agent.matricule}
+                  {card.agent.sexe === "M"
+                    ? "Homme"
+                    : card.agent.sexe === "F"
+                    ? "Femme"
+                    : "Sexe non renseigné"}{" "}
+                  · {card.agent.fonction}
                 </p>
               </div>
             </div>
 
             <div className="mt-5 grid gap-4 border-t border-line pt-5 sm:grid-cols-3">
-              <Info label="Expiration">
+              <Info label="Émise le">
+                {formatDate(card.issuedAt ?? card.createdAt)}
+              </Info>
+              <Info label="Expire le">
                 {card.expireAt ? formatDate(card.expireAt) : "Illimitée"}
               </Info>
-              <Info label="Créée le">{formatDate(card.createdAt)}</Info>
               <Info label="Jeton">
                 <button
                   onClick={copierToken}
@@ -252,6 +409,13 @@ export default function CarteDetailPage({
               </Info>
             </div>
           </Card>
+
+          <InfosAgent
+            key={`${card.agent.id}-${card.agent.sexe}-${card.agent.fonction}`}
+            agent={card.agent}
+            onSaved={charger}
+            notify={afficherToast}
+          />
 
           <Card>
             <CardTitle
@@ -287,7 +451,8 @@ export default function CarteDetailPage({
             <div className="mt-6 border-t border-line pt-5">
               <p className="text-sm font-semibold text-ink">Renouveler</p>
               <p className="mt-0.5 text-xs text-muted">
-                Réactive la carte avec une nouvelle date d’expiration.
+                Réactive la carte avec une nouvelle date d’expiration et une
+                nouvelle date d’émission.
               </p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {presets.map((p) => (
@@ -307,7 +472,10 @@ export default function CarteDetailPage({
                   onChange={(e) => setExpiration(e.target.value)}
                   className={`${inputClass} sm:max-w-[220px]`}
                 />
-                <button onClick={() => appliquer("renouveler")} className={btnPrimary}>
+                <button
+                  onClick={() => appliquer("renouveler")}
+                  className={btnPrimary}
+                >
                   <RefreshCw className="size-4" /> Renouveler
                 </button>
               </div>
@@ -317,7 +485,10 @@ export default function CarteDetailPage({
 
         <div className="space-y-4">
           <Card>
-            <CardTitle title="QR code" subtitle="Scannez pour vérifier l’identité" />
+            <CardTitle
+              title="QR code"
+              subtitle="Scannez pour vérifier l’identité"
+            />
             <div className="mx-auto w-full max-w-[220px] rounded-2xl bg-white p-3 ring-1 ring-line">
               {qr ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -334,7 +505,11 @@ export default function CarteDetailPage({
               >
                 <Printer className="size-4" /> Imprimer
               </Link>
-              <Link href={`/v/${card.token}`} target="_blank" className={btnSoft}>
+              <Link
+                href={`/v/${card.token}`}
+                target="_blank"
+                className={btnSoft}
+              >
                 <ExternalLink className="size-4" /> Page publique
               </Link>
             </div>
@@ -367,7 +542,9 @@ export default function CarteDetailPage({
                       <p className="text-sm font-medium text-ink">
                         {formatDate(l.scannedAt)}
                       </p>
-                      <p className="text-xs text-muted">{formatTime(l.scannedAt)}</p>
+                      <p className="text-xs text-muted">
+                        {formatTime(l.scannedAt)}
+                      </p>
                     </div>
                     <Pill tone={l.resultat === "valide" ? "green" : "rose"}>
                       {l.resultat === "valide" ? "Valide" : "Invalide"}

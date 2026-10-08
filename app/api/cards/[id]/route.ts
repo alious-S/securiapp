@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { finDeJournee } from "@/lib/dates";
 
 export async function GET(
   request: NextRequest,
@@ -9,13 +10,15 @@ export async function GET(
     const { id } = await params;
     const card = await prisma.card.findUnique({
       where: { id },
-      include: { agent: true, logs: { orderBy: { scannedAt: "desc" }, take: 10 } },
+      include: {
+        agent: true,
+        logs: { orderBy: { scannedAt: "desc" }, take: 10 },
+      },
     });
 
     if (!card) {
       return NextResponse.json({ error: "Carte introuvable" }, { status: 404 });
     }
-
     return NextResponse.json(card);
   } catch (error) {
     console.error(error);
@@ -32,7 +35,7 @@ export async function PATCH(
     const body = await request.json();
     const { action, expireAt } = body;
 
-    let data: { statut?: string; expireAt?: Date | null } = {};
+    let data: { statut?: string; expireAt?: Date | null; issuedAt?: Date } = {};
 
     if (action === "activer") {
       data = { statut: "actif" };
@@ -41,10 +44,14 @@ export async function PATCH(
     } else if (action === "revoquer") {
       data = { statut: "revoque" };
     } else if (action === "renouveler") {
-      data = {
-        statut: "actif",
-        expireAt: expireAt ? new Date(expireAt) : null,
-      };
+      const fin = finDeJournee(expireAt);
+      if (!fin || fin <= new Date()) {
+        return NextResponse.json(
+          { error: "Date d'expiration invalide." },
+          { status: 400 }
+        );
+      }
+      data = { statut: "actif", expireAt: fin, issuedAt: new Date() };
     } else {
       return NextResponse.json({ error: "Action invalide" }, { status: 400 });
     }
@@ -54,7 +61,6 @@ export async function PATCH(
       data,
       include: { agent: true },
     });
-
     return NextResponse.json(card);
   } catch (error) {
     console.error(error);
