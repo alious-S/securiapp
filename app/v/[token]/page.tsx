@@ -6,12 +6,21 @@ import {
   Check,
   ShieldCheck,
   ShieldX,
+  UserX,
   X,
 } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { formatDateFR } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
+
+type Etat =
+  | "valide"
+  | "hors_service"
+  | "revoquee"
+  | "desactivee"
+  | "expiree"
+  | "inconnue";
 
 function Ligne({
   icone,
@@ -54,8 +63,22 @@ export default async function VerifyPage({
   const entreprise = settings?.nomOrganisation ?? "SecuriApp";
 
   const expiree = !!card?.expireAt && card.expireAt < new Date();
-  const valide =
-    !!card && card.statut === "actif" && !expiree && card.agent.actif;
+
+  // Ordre de priorité : une carte révoquée reste "révoquée", puis on regarde
+  // si l'agent est sur le terrain, puis l'état de la carte.
+  const etat: Etat = !card
+    ? "inconnue"
+    : card.statut === "revoque"
+    ? "revoquee"
+    : !card.agent.actif
+    ? "hors_service"
+    : card.statut === "desactive"
+    ? "desactivee"
+    : expiree
+    ? "expiree"
+    : "valide";
+
+  const valide = etat === "valide";
 
   // Enregistre le scan (sans jamais bloquer l'affichage)
   try {
@@ -72,15 +95,35 @@ export default async function VerifyPage({
     console.error("Log de vérification impossible", e);
   }
 
-  const motif = !card
-    ? "Cette carte n’existe pas."
-    : card.statut === "revoque"
-    ? "Cette carte a été révoquée."
-    : !card.agent.actif
-    ? "Cet agent n’est plus en service."
-    : card.statut === "desactive"
-    ? "Cette carte est désactivée."
-    : "Cette carte a expiré.";
+  const motif =
+    etat === "inconnue"
+      ? "Cette carte n’existe pas."
+      : etat === "revoquee"
+      ? "Cette carte a été révoquée."
+      : etat === "desactivee"
+      ? "Cette carte est désactivée."
+      : "Cette carte a expiré.";
+
+  const theme = valide
+    ? {
+        degrade: "from-[#1f8359] to-[#0b3822]",
+        trait: "#55b98a",
+        icone: "text-[#11512f]",
+        libelle: "Carte valide",
+      }
+    : etat === "hors_service"
+    ? {
+        degrade: "from-[#f59e0b] to-[#92400e]",
+        trait: "#fcd34d",
+        icone: "text-[#b45309]",
+        libelle: "Hors service",
+      }
+    : {
+        degrade: "from-[#e11d48] to-[#7f1032]",
+        trait: "#fb7185",
+        icone: "text-[#be123c]",
+        libelle: "Carte invalide",
+      };
 
   const maintenant = new Date().toLocaleString("fr-FR", {
     dateStyle: "long",
@@ -102,11 +145,7 @@ export default async function VerifyPage({
       <div className="w-full max-w-sm overflow-hidden rounded-[2rem] bg-white shadow-[0_8px_40px_rgba(16,26,20,0.08)] ring-1 ring-black/[0.04]">
         {/* Bannière */}
         <div
-          className={`relative h-[152px] overflow-hidden bg-linear-to-br ${
-            valide
-              ? "from-[#1f8359] to-[#0b3822]"
-              : "from-[#e11d48] to-[#7f1032]"
-          }`}
+          className={`relative h-[152px] overflow-hidden bg-linear-to-br ${theme.degrade}`}
         >
           <svg
             viewBox="0 0 384 152"
@@ -119,7 +158,7 @@ export default async function VerifyPage({
               y1="-10"
               x2="178"
               y2="170"
-              stroke={valide ? "#55b98a" : "#fb7185"}
+              stroke={theme.trait}
               strokeWidth="26"
             />
             <line
@@ -144,9 +183,7 @@ export default async function VerifyPage({
 
           <div className="absolute left-5 top-5 flex items-center gap-2 rounded-full bg-white/15 py-1.5 pl-2 pr-3.5 text-[13px] font-semibold text-white backdrop-blur-sm">
             <span
-              className={`grid size-[22px] place-items-center rounded-full bg-white ${
-                valide ? "text-[#11512f]" : "text-[#be123c]"
-              }`}
+              className={`grid size-[22px] place-items-center rounded-full bg-white ${theme.icone}`}
             >
               {valide ? (
                 <Check className="size-3.5" strokeWidth={3} />
@@ -154,7 +191,7 @@ export default async function VerifyPage({
                 <X className="size-3.5" strokeWidth={3} />
               )}
             </span>
-            {valide ? "Carte valide" : "Carte invalide"}
+            {theme.libelle}
           </div>
         </div>
 
@@ -215,6 +252,22 @@ export default async function VerifyPage({
                   accent
                 />
               </div>
+            </>
+          ) : etat === "hors_service" ? (
+            <>
+              <div className="mx-auto grid size-32 place-items-center rounded-full border-[6px] border-white bg-[#fffbeb] text-[#d97706] shadow-[0_4px_16px_rgba(16,26,20,0.12)]">
+                <UserX className="size-14" strokeWidth={1.8} />
+              </div>
+              <h1 className="mt-4 text-balance text-2xl font-bold tracking-tight text-[#101a14]">
+                L’agent n’est pas sur le terrain
+              </h1>
+              <p className="mt-1 text-[13px] text-[#7a857e]">
+                Cet agent n’est pas en service actuellement.
+              </p>
+              <p className="mt-5 rounded-2xl bg-[#fffbeb] px-4 py-3 text-[12.5px] leading-relaxed text-[#b45309]">
+                Ne lui accordez pas l’accès en tant qu’agent de sécurité. En cas
+                de doute, contactez {entreprise}.
+              </p>
             </>
           ) : (
             <>

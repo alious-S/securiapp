@@ -34,7 +34,7 @@ type NavEntry = {
 type Profil = { nom: string; email: string };
 
 const menu: NavEntry[] = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin", label:  "Accueil", icon: LayoutDashboard },
   { href: "/admin/cartes", label: "Cartes", icon: IdCard },
   { href: "/admin/agents", label: "Agents", icon: Users },
   { href: "/admin/verifications", label: "Vérifications", icon: ScanLine },
