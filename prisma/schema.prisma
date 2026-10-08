@@ -17,6 +17,8 @@ model Agent {
   photoUrl  String?  @db.Text
   actif     Boolean  @default(true)
   createdAt DateTime @default(now())
+    sexe      String?
+  fonction  String   @default("Agent de sécurité")
 
   cards Card[]
 }
@@ -26,6 +28,7 @@ model Card {
   token     String    @unique
   statut    String    @default("actif") // "actif" | "desactive" | "revoque"
   expireAt  DateTime?
+    issuedAt  DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

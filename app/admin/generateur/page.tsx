@@ -22,6 +22,7 @@ import {
   btnSoft,
   inputClass,
 } from "@/components/admin/ui";
+import { Fira_Code } from "next/font/google";
 
 /** Recadre en carré et compresse la photo (évite les envois trop lourds). */
 async function compresserImage(file: File, taille = 480): Promise<string> {
