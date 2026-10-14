@@ -35,9 +35,9 @@ type Entree = {
 const MENU: Entree[] = [
   { href: "/admin", label: "Accueil", icon: LayoutDashboard },
   { href: "/admin/agents", label: "Mes agents", icon: Users, aussi: ["/admin/cartes", "/admin/generateur"] },
-  { href: "/admin/verifications", label: "Contrôles", icon: ScanLine, aussi: ["/admin/alertes"], badge: true },
+  { href: "/admin/contrôles", label: "Contrôles", icon: ScanLine, aussi: ["/admin/alertes"], badge: true },
   { href: "/admin/modele-carte", label: "Ma carte", icon: IdCard },
-  { href: "/admin/parametres", label: "Réglages", icon: Settings },
+  { href: "/admin/réglagess", label: "Réglages", icon: Settings },
 ];
 
 type Marque = { nomOrganisation: string; aLogo: boolean; version: number };
