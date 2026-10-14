@@ -1,24 +1,13 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/db";
 import { formatDateFR } from "@/lib/dates";
+import { urlDuSite } from "@/lib/site";
+import { lireModele } from "@/lib/modele-carte";
 import { Card, btnPrimary, etatCarte } from "@/components/admin/ui";
-import CartePrint from "./CartePrint";
+import CartePrint from "@/components/carte/CartePrint";
 
 export const dynamic = "force-dynamic";
-
-/** Adresse publique encodée dans le QR code. */
-async function baseUrl() {
-  const fixe = process.env.NEXT_PUBLIC_SITE_URL;
-  if (fixe) return fixe.replace(/\/$/, "");
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto =
-    h.get("x-forwarded-proto") ??
-    (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
 
 export default async function CartePage({
   params,
@@ -27,10 +16,14 @@ export default async function CartePage({
 }) {
   const { token } = await params;
 
-  const card = await prisma.card.findUnique({
-    where: { token },
-    include: { agent: true },
-  });
+  const [card, settings, modele] = await Promise.all([
+    prisma.card.findUnique({ where: { token }, include: { agent: true } }),
+    prisma.settings.findUnique({ where: { id: "main" } }),
+    prisma.modeleCarte.findUnique({
+      where: { id: "main" },
+      select: { config: true, logoUrl: true, updatedAt: true },
+    }),
+  ]);
 
   if (!card) {
     return (
@@ -40,38 +33,46 @@ export default async function CartePage({
           <p className="mt-1 text-sm text-muted">
             Cette carte n’existe pas dans cette base de données.
           </p>
-          <Link href="/admin/cartes" className={`${btnPrimary} mt-5`}>
-            Retour aux cartes
+          <Link href="/admin/agents" className={`${btnPrimary} mt-5`}>
+            Retour aux agents
           </Link>
         </Card>
       </div>
     );
   }
 
-  const settings = await prisma.settings.findUnique({ where: { id: "main" } });
-  const qr = await QRCode.toDataURL(`${await baseUrl()}/v/${token}`, {
+  const qr = await QRCode.toDataURL(`${await urlDuSite()}/v/${token}`, {
     width: 600,
     margin: 1,
     errorCorrectionLevel: "M",
   });
-  const etat = etatCarte(card.statut, card.expireAt);
   const { agent } = card;
+  const etat = etatCarte(card.statut, card.expireAt);
 
   return (
     <CartePrint
-      cardId={card.id}
-      prenom={agent.prenom}
-      nom={agent.nom}
-      matricule={agent.matricule}
-      sexe={agent.sexe === "M" ? "Homme" : agent.sexe === "F" ? "Femme" : "—"}
-      fonction={agent.fonction}
-      entreprise={settings?.nomOrganisation ?? "SecuriApp"}
-      emission={formatDateFR(card.issuedAt ?? card.createdAt)}
-      expiration={card.expireAt ? formatDateFR(card.expireAt) : "Illimitée"}
-      photoUrl={agent.photoUrl}
-      qr={qr}
-      etatLabel={etat.label}
-      etatTone={etat.tone}
+      retour={{ href: `/admin/cartes/${card.id}`, label: "Retour à la fiche" }}
+      titre={`${agent.prenom} ${agent.nom}`}
+      etat={etat}
+      donnees={{
+        prenom: agent.prenom,
+        nom: agent.nom,
+        matricule: agent.matricule,
+        sexe: agent.sexe === "M" ? "Homme" : agent.sexe === "F" ? "Femme" : "—",
+        fonction: agent.fonction,
+        entreprise: settings?.nomOrganisation ?? "SecuriApp",
+        emission: formatDateFR(card.issuedAt ?? card.createdAt),
+        expiration: card.expireAt ? formatDateFR(card.expireAt) : "Illimitée",
+        photoUrl: agent.photoUrl,
+        qr,
+      }}
+      modeleInitial={lireModele(modele?.config)}
+      nomInitial={settings?.nomOrganisation ?? "SecuriApp"}
+      logoInitial={
+        modele?.logoUrl
+          ? `/api/modele-carte/logo?v=${new Date(modele.updatedAt).getTime()}`
+          : null
+      }
     />
   );
 }

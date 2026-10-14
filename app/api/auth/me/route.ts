@@ -9,7 +9,7 @@ export async function GET() {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
-  const admin = await prisma.admin.findUnique({
+  const admin = await prisma .admin.findUnique({
     where: { id: session.id },
     select: { nom: true, email: true },
   });

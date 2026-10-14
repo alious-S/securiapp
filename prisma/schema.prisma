@@ -61,3 +61,10 @@ model Admin {
   lockedUntil    DateTime?
   createdAt      DateTime  @default(now())
 }
+// Apparence des cartes du client : réglages + logo
+model ModeleCarte {
+  id        String   @id @default("main")
+  config    Json     @default("{}")
+  logoUrl   String?  @db.Text
+  updatedAt DateTime @updatedAt
+}

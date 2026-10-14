@@ -1,136 +1,101 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+/**
+ * CADRE DE L'ADMINISTRATION : menu à gauche (en tiroir sur téléphone)
+ * Le menu porte le logo et le nom de l'entreprise du client.
+ * Cinq entrées seulement : tout le reste s'atteint depuis ces pages.
+ */
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  ArrowUpRight,
-  Bell,
-  ChevronDown,
   IdCard,
   LayoutDashboard,
   Loader2,
   LogOut,
   Menu,
+  Plus,
   ScanLine,
-  Search,
   Settings,
   ShieldCheck,
-  SquarePlus,
-  TriangleAlert,
   Users,
   X,
   type LucideIcon,
 } from "lucide-react";
-import { Skeleton, cn } from "@/components/admin/ui";
+import { cn } from "@/components/admin/ui";
 
-type NavEntry = {
+type Entree = {
   href: string;
   label: string;
   icon: LucideIcon;
+  aussi?: string[]; // autres adresses qui gardent cette entrée allumée
   badge?: boolean;
 };
 
+const MENU: Entree[] = [
+  { href: "/admin", label: "Accueil", icon: LayoutDashboard },
+  { href: "/admin/agents", label: "Mes agents", icon: Users, aussi: ["/admin/cartes", "/admin/generateur"] },
+  { href: "/admin/verifications", label: "Contrôles", icon: ScanLine, aussi: ["/admin/alertes"], badge: true },
+  { href: "/admin/modele-carte", label: "Ma carte", icon: IdCard },
+  { href: "/admin/parametres", label: "Réglages", icon: Settings },
+];
+
+type Marque = { nomOrganisation: string; aLogo: boolean; version: number };
 type Profil = { nom: string; email: string };
 
-const menu: NavEntry[] = [
-  { href: "/admin", label:  "Accueil", icon: LayoutDashboard },
-  { href: "/admin/cartes", label: "Cartes", icon: IdCard },
-  { href: "/admin/agents", label: "Agents", icon: Users },
-  { href: "/admin/verifications", label: "Vérifications", icon: ScanLine },
-  { href: "/admin/alertes", label: "Alertes", icon: TriangleAlert, badge: true },
-];
-
-const general: NavEntry[] = [
-  { href: "/admin/generateur", label: "Générateur", icon: SquarePlus },
-  { href: "/admin/parametres", label: "Paramètres", icon: Settings },
-];
-
 const initiales = (nom: string) =>
-  nom
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0])
-    .join("")
-    .toUpperCase() || "A";
+  nom.split(/\s+/).filter(Boolean).slice(0, 2).map((m) => m[0]).join("").toUpperCase() || "A";
 
-function NavItem({
-  item,
-  active,
-  count,
-  onNavigate,
-}: {
-  item: NavEntry;
-  active: boolean;
-  count: number;
-  onNavigate: () => void;
-}) {
-  const Icon = item.icon;
-  return (
-    <Link
-      href={item.href}
-      onClick={onNavigate}
-      className={cn(
-        "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
-        active
-          ? "font-semibold text-brand-800"
-          : "font-medium text-muted hover:bg-black/[0.03] hover:text-ink"
-      )}
-    >
-      {active && (
-        <span className="absolute -left-4 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-brand-700" />
-      )}
-      <Icon
-        className={cn(
-          "size-[18px] transition-colors",
-          active ? "text-brand-700" : "text-muted group-hover:text-ink"
-        )}
-        strokeWidth={active ? 2.2 : 1.8}
+function Logo({ marque, taille }: { marque: Marque | null; taille: string }) {
+  if (marque?.aLogo) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={`/api/modele-carte/logo?v=${marque.version}`}
+        alt=""
+        className={cn("shrink-0 rounded-xl bg-white object-contain ring-1 ring-line", taille)}
       />
-      <span className="flex-1">{item.label}</span>
-      {item.badge && count > 0 && (
-        <span className="rounded-full bg-brand-800 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
-          {count > 9 ? "9+" : count}
-        </span>
-      )}
-    </Link>
+    );
+  }
+  return (
+    <span className={cn("grid shrink-0 place-items-center rounded-xl bg-brand-800 text-white", taille)}>
+      <ShieldCheck className="size-1/2" />
+    </span>
   );
 }
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [recherche, setRecherche] = useState("");
-  const [alertes, setAlertes] = useState(0);
+  const [ouvert, setOuvert] = useState(false);
+  const [marque, setMarque] = useState<Marque | null>(null);
   const [profil, setProfil] = useState<Profil | null>(null);
-  const [menuProfil, setMenuProfil] = useState(false);
+  const [alertes, setAlertes] = useState(0);
   const [sortie, setSortie] = useState(false);
-  const profilRef = useRef<HTMLDivElement>(null);
 
-  // Profil de l'administrateur connecté
+  // Nom et logo de l'entreprise (se met à jour quand on enregistre "Ma carte")
   useEffect(() => {
-    let actif = true;
+    const charger = () =>
+      fetch("/api/modele-carte?leger=1")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((m) => m && setMarque(m))
+        .catch(() => {});
+    charger();
+    window.addEventListener("marque-modifiee", charger);
+    return () => window.removeEventListener("marque-modifiee", charger);
+  }, []);
+
+  // Profil connecté
+  useEffect(() => {
     fetch("/api/auth/me")
       .then(async (res) => {
-        if (res.status === 401) {
-          router.replace("/login");
-          return;
-        }
-        if (res.ok && actif) setProfil(await res.json());
+        if (res.status === 401) return router.replace("/login");
+        if (res.ok) setProfil(await res.json());
       })
       .catch(() => {});
-    return () => {
-      actif = false;
-    };
   }, [router]);
 
-  // Nombre d'alertes (badge)
+  // Pastille "à surveiller" sur Contrôles
   useEffect(() => {
     let actif = true;
     async function charger() {
@@ -155,40 +120,18 @@ export default function AdminLayout({
     };
   }, []);
 
-  // Bloque le scroll de la page quand le tiroir mobile est ouvert
+  // Empêche la page de défiler derrière le menu ouvert (téléphone)
   useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
+    document.body.style.overflow = ouvert ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [open]);
+  }, [ouvert]);
 
-  // Ferme le menu profil au clic extérieur ou avec Échap
-  useEffect(() => {
-    if (!menuProfil) return;
-    const onClick = (e: MouseEvent) => {
-      if (!profilRef.current?.contains(e.target as Node)) setMenuProfil(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuProfil(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [menuProfil]);
-
-  function isActive(href: string) {
-    return href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
-  }
-
-  function onSearch(e: FormEvent) {
-    e.preventDefault();
-    const q = recherche.trim();
-    router.push(q ? `/admin/cartes?q=${encodeURIComponent(q)}` : "/admin/cartes");
-  }
+  const actif = (e: Entree) =>
+    e.href === "/admin"
+      ? pathname === "/admin"
+      : [e.href, ...(e.aussi ?? [])].some((p) => pathname.startsWith(p));
 
   async function deconnexion() {
     if (sortie) return;
@@ -202,37 +145,44 @@ export default function AdminLayout({
     router.refresh();
   }
 
-  const fermer = () => setOpen(false);
+  const fermer = () => setOuvert(false);
+  const nomEntreprise = marque?.nomOrganisation ?? "SecuriApp";
 
   return (
     <div className="min-h-screen">
-      {/* Fond assombri (mobile) */}
+      {/* Barre du haut (téléphone et tablette) */}
+      <header className="sticky top-0 z-30 flex items-center gap-3 bg-canvas/90 px-3 py-3 backdrop-blur lg:hidden">
+        <button
+          onClick={() => setOuvert(true)}
+          aria-label="Ouvrir le menu"
+          className="grid size-11 place-items-center rounded-full bg-white ring-1 ring-black/[0.05]"
+        >
+          <Menu className="size-5" />
+        </button>
+        <Logo marque={marque} taille="size-9" />
+        <span className="truncate text-base font-semibold text-ink">{nomEntreprise}</span>
+      </header>
+
       <div
         onClick={fermer}
         className={cn(
           "fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] transition-opacity lg:hidden",
-          open ? "opacity-100" : "pointer-events-none opacity-0"
+          ouvert ? "opacity-100" : "pointer-events-none opacity-0"
         )}
       />
 
-      {/* Menu vertical */}
       <aside
         className={cn(
           "fixed bottom-3 left-3 top-3 z-50 flex w-64 flex-col rounded-3xl bg-white p-4 ring-1 ring-black/[0.04] transition-transform duration-300 ease-out lg:translate-x-0",
-          open
-            ? "translate-x-0 shadow-[0_8px_40px_rgba(16,26,20,0.18)]"
-            : "-translate-x-[120%]"
+          ouvert ? "translate-x-0 shadow-[0_8px_40px_rgba(16,26,20,0.18)]" : "-translate-x-[120%]"
         )}
       >
-        <div className="flex items-center justify-between px-2 pb-6 pt-2">
-          <Link href="/admin" onClick={fermer} className="flex items-center gap-2.5">
-            <span className="grid size-9 place-items-center rounded-xl bg-brand-800 text-white">
-              <ShieldCheck className="size-5" />
-            </span>
-            <span className="text-lg font-semibold tracking-tight text-ink">
-              SecuriApp
-            </span>
-          </Link>
+        <div className="flex items-center gap-3 px-1 pb-4">
+          <Logo marque={marque} taille="size-11" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-semibold leading-tight text-ink">{nomEntreprise}</p>
+            <p className="text-xs text-muted">Contrôle des agents</p>
+          </div>
           <button
             onClick={fermer}
             aria-label="Fermer le menu"
@@ -242,196 +192,69 @@ export default function AdminLayout({
           </button>
         </div>
 
-        <nav className="min-h-0 flex-1 space-y-6 overflow-y-auto">
-          <div>
-            <p className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-muted/80">
-              MENU
-            </p>
-            <div className="space-y-0.5">
-              {menu.map((item) => (
-                <NavItem
-                  key={item.href}
-                  item={item}
-                  active={isActive(item.href)}
-                  count={alertes}
-                  onNavigate={fermer}
-                />
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-muted/80">
-              GÉNÉRAL
-            </p>
-            <div className="space-y-0.5">
-              {general.map((item) => (
-                <NavItem
-                  key={item.href}
-                  item={item}
-                  active={isActive(item.href)}
-                  count={0}
-                  onNavigate={fermer}
-                />
-              ))}
-              <button
-                onClick={deconnexion}
-                disabled={sortie}
-                className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-60"
-              >
-                {sortie ? (
-                  <Loader2 className="size-[18px] animate-spin" />
-                ) : (
-                  <LogOut className="size-[18px]" strokeWidth={1.8} />
+        <Link
+          href="/admin/generateur"
+          onClick={fermer}
+          className="mb-4 flex items-center justify-center gap-2 rounded-2xl bg-brand-800 py-3 text-sm font-semibold text-white transition hover:bg-brand-900 active:scale-[0.98]"
+        >
+          <Plus className="size-4" /> Nouvel agent
+        </Link>
+
+        <nav className="flex-1 space-y-1 overflow-y-auto">
+          {MENU.map((e) => {
+            const Icone = e.icon;
+            const allume = actif(e);
+            return (
+              <Link
+                key={e.href}
+                href={e.href}
+                onClick={fermer}
+                className={cn(
+                  "relative flex items-center gap-3 rounded-2xl px-3 py-3 text-[15px] transition-colors",
+                  allume
+                    ? "bg-brand-50 font-semibold text-brand-800"
+                    : "font-medium text-muted hover:bg-black/[0.03] hover:text-ink"
                 )}
-                Déconnexion
-              </button>
-            </div>
-          </div>
+              >
+                <Icone className={cn("size-5", allume ? "text-brand-700" : "text-muted")} strokeWidth={allume ? 2.2 : 1.8} />
+                <span className="flex-1">{e.label}</span>
+                {e.badge && alertes > 0 && (
+                  <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold leading-none text-white">
+                    {alertes > 9 ? "9+" : alertes}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
 
-        <div className="relative mt-4 shrink-0 overflow-hidden rounded-2xl bg-linear-to-br from-brand-700 to-brand-900 p-4 text-white">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              backgroundImage:
-                "repeating-radial-gradient(circle at 100% 100%, rgba(255,255,255,0.07) 0 1px, transparent 1px 14px)",
-            }}
-          />
-          <p className="relative text-sm font-semibold">Nouvelle carte</p>
-          <p className="relative mt-1 text-xs leading-relaxed text-white/70">
-            Créez un agent et imprimez sa carte en quelques secondes.
-          </p>
-          <Link
-            href="/admin/generateur"
-            onClick={fermer}
-            className="relative mt-3 flex items-center justify-center gap-1.5 rounded-full bg-white/15 py-2 text-xs font-medium transition hover:bg-white/25"
+        <div className="mt-3 flex items-center gap-3 border-t border-line pt-4">
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-100 text-sm font-semibold text-brand-800">
+            {profil ? initiales(profil.nom) : "·"}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-ink">{profil?.nom ?? "…"}</p>
+            <p className="truncate text-xs text-muted">{profil?.email}</p>
+          </div>
+          <button
+            onClick={deconnexion}
+            disabled={sortie}
+            aria-label="Se déconnecter"
+            title="Se déconnecter"
+            className="grid size-10 shrink-0 place-items-center rounded-full text-muted transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-60"
           >
-            Créer une carte <ArrowUpRight className="size-3.5" />
-          </Link>
+            {sortie ? <Loader2 className="size-[18px] animate-spin" /> : <LogOut className="size-[18px]" />}
+          </button>
         </div>
       </aside>
 
-      {/* Zone principale */}
-      <div className="lg:pl-[16.75rem]">
-        <header className="sticky top-3 z-30 mx-3 mt-3 flex items-center gap-3 rounded-3xl bg-white px-3 py-2.5 ring-1 ring-black/[0.04]">
-          <button
-            onClick={() => setOpen(true)}
-            aria-label="Ouvrir le menu"
-            className="grid size-10 shrink-0 place-items-center rounded-full text-ink hover:bg-black/[0.05] lg:hidden"
-          >
-            <Menu className="size-5" />
-          </button>
-
-          <form onSubmit={onSearch} className="relative min-w-0 max-w-md flex-1">
-            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted" />
-            <input
-              value={recherche}
-              onChange={(e) => setRecherche(e.target.value)}
-              placeholder="Rechercher un agent, un matricule…"
-              className="h-11 w-full rounded-full bg-canvas/60 pl-10 pr-4 text-sm text-ink outline-none transition placeholder:text-muted focus:bg-white focus:ring-2 focus:ring-brand-200"
-            />
-          </form>
-
-          <div className="ml-auto flex items-center gap-2">
-            <Link
-              href="/admin/alertes"
-              aria-label="Alertes"
-              className="relative grid size-10 place-items-center rounded-full border border-line text-ink transition hover:bg-brand-50"
-            >
-              <Bell className="size-[18px]" />
-              {alertes > 0 && (
-                <span className="absolute right-2.5 top-2.5 size-2 rounded-full bg-rose-500 ring-2 ring-white" />
-              )}
-            </Link>
-
-            {/* Profil de l'administrateur */}
-            <div ref={profilRef} className="relative">
-              <button
-                onClick={() => setMenuProfil((v) => !v)}
-                aria-haspopup="menu"
-                aria-expanded={menuProfil}
-                className="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-2 transition hover:bg-black/[0.04] sm:pr-3"
-              >
-                <span className="grid size-10 place-items-center rounded-full bg-brand-800 text-sm font-semibold text-white">
-                  {profil ? initiales(profil.nom) : "·"}
-                </span>
-                <div className="hidden text-left leading-tight sm:block">
-                  {profil ? (
-                    <>
-                      <p className="max-w-[140px] truncate text-sm font-semibold text-ink">
-                        {profil.nom}
-                      </p>
-                      <p className="max-w-[140px] truncate text-xs text-muted">
-                        {profil.email}
-                      </p>
-                    </>
-                  ) : (
-                    <div className="space-y-1.5">
-                      <Skeleton className="h-3.5 w-24" />
-                      <Skeleton className="h-3 w-32" />
-                    </div>
-                  )}
-                </div>
-                <ChevronDown
-                  className={cn(
-                    "hidden size-4 text-muted transition-transform sm:block",
-                    menuProfil && "rotate-180"
-                  )}
-                />
-              </button>
-
-              {menuProfil && (
-                <div
-                  role="menu"
-                  className="page-enter absolute right-0 top-[calc(100%+0.5rem)] z-50 w-64 rounded-2xl bg-white p-2 shadow-[0_8px_40px_rgba(16,26,20,0.14)] ring-1 ring-black/[0.05]"
-                >
-                  <div className="px-3 py-2.5">
-                    <p className="truncate text-sm font-semibold text-ink">
-                      {profil?.nom ?? "Administrateur"}
-                    </p>
-                    <p className="truncate text-xs text-muted">
-                      {profil?.email}
-                    </p>
-                  </div>
-                  <div className="my-1 h-px bg-line" />
-                  <Link
-                    href="/admin/parametres"
-                    role="menuitem"
-                    onClick={() => setMenuProfil(false)}
-                    className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-ink transition hover:bg-black/[0.04]"
-                  >
-                    <Settings className="size-4 text-muted" />
-                    Paramètres et compte
-                  </Link>
-                  <button
-                    role="menuitem"
-                    onClick={deconnexion}
-                    disabled={sortie}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
-                  >
-                    {sortie ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <LogOut className="size-4" />
-                    )}
-                    Se déconnecter
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
-
-        <main className="mx-3 min-w-0 pb-10 pt-6">
-          <div
-            key={pathname}
-            className="page-enter mx-auto w-full max-w-[1400px]"
-          >
+      <main className="lg:pl-[16.75rem]">
+        <div className="mx-3 min-w-0 pb-12 pt-3 lg:pt-8">
+          <div key={pathname} className="page-enter mx-auto w-full max-w-[1100px]">
             {children}
           </div>
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
