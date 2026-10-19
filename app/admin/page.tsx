@@ -1,14 +1,13 @@
-"use client";
-
 /**
- * ACCUEIL : on comprend en 3 secondes si tout va bien.
- * 1. Un message clair (tout va bien / ceci demande votre attention)
+ * ACCUEIL (chargé côté serveur : la page arrive déjà remplie)
+ * 1. Un message clair : tout va bien, ou ceci demande votre attention
  * 2. Un guide de démarrage tant que l'entreprise n'est pas configurée
  * 3. Trois chiffres, puis "À faire" et "Derniers contrôles"
+ * Les chiffres viennent de lib/donnees.ts.
  */
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  CalendarClock,
   Check,
   ChevronRight,
   Circle,
@@ -18,31 +17,18 @@ import {
   ShieldX,
   TriangleAlert,
   Users,
-  CalendarClock,
 } from "lucide-react";
-import {
-  Avatar,
-  Card,
-  CardTitle,
-  Pill,
-  Skeleton,
-  cn,
-  formatDate,
-} from "@/components/admin/ui";
+import { Avatar, Card, CardTitle, Pill, cn, formatDate } from "@/components/admin/ui";
+import { chargerAccueil, chargerModele } from "@/lib/donnees";
+import { getSession } from "@/lib/session";
 
-type Donnees = {
-  agents: { total: number; actifs: number; inactifs: number };
-  cartes: { total: number; valides: number; expirees: number; bientot: number };
-  controles: { aujourdhui: number; refuses: number };
-  aTraiter: { id: string; expireAt: string; nom: string; prenom: string }[];
-  derniers: { id: string; resultat: string; scannedAt: string; nom: string | null; prenom: string | null }[];
-};
-type Marque = { nomOrganisation: string; aLogo: boolean };
+// Les chiffres changent à chaque contrôle : on ne fige jamais cette page
+export const dynamic = "force-dynamic";
 
 const pluriel = (n: number, un: string, plusieurs: string) => `${n} ${n > 1 ? plusieurs : un}`;
 
-function depuis(iso: string) {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+function depuis(date: Date) {
+  const s = Math.floor((Date.now() - date.getTime()) / 1000);
   if (s < 60) return "à l’instant";
   const m = Math.floor(s / 60);
   if (m < 60) return `il y a ${m} min`;
@@ -52,15 +38,33 @@ function depuis(iso: string) {
   return j === 1 ? "hier" : `il y a ${j} jours`;
 }
 
-function expiration(iso: string) {
-  const fin = new Date(iso);
-  if (fin < new Date()) return { texte: `Expirée depuis le ${formatDate(iso)}`, rouge: true };
-  const jours = Math.ceil((fin.getTime() - Date.now()) / 86400000);
+function expiration(fin: Date) {
+  if (fin < new Date()) return { texte: `Expirée depuis le ${formatDate(fin)}`, rouge: true };
+  const jours = Math.ceil((fin.getTime() - Date.now()) / 86_400_000);
   return {
     texte: jours <= 1 ? "Expire aujourd’hui ou demain" : `Expire dans ${jours} jours`,
     rouge: false,
   };
 }
+
+// Chaque chiffre a sa couleur : vert (agents), bleu (contrôles), ambre (à faire)
+const TEINTES = {
+  vert: {
+    fond: "from-[#e4f4ea]",
+    tuile: "bg-brand-600 shadow-[0_6px_14px_rgba(31,131,89,0.28)]",
+    detail: "text-brand-700",
+  },
+  bleu: {
+    fond: "from-[#e0f1fd]",
+    tuile: "bg-sky-600 shadow-[0_6px_14px_rgba(2,132,199,0.28)]",
+    detail: "text-sky-700",
+  },
+  ambre: {
+    fond: "from-[#fdf0d5]",
+    tuile: "bg-amber-500 shadow-[0_6px_14px_rgba(245,158,11,0.3)]",
+    detail: "text-amber-700",
+  },
+};
 
 function Compteur({
   href,
@@ -68,120 +72,85 @@ function Compteur({
   label,
   valeur,
   detail,
-  alerte,
+  teinte,
 }: {
   href: string;
   icone: React.ReactNode;
   label: string;
   valeur: number;
   detail: string;
-  alerte?: boolean;
+  teinte: keyof typeof TEINTES;
 }) {
+  const t = TEINTES[teinte];
   return (
     <Link
       href={href}
-      className="group flex items-center gap-4 rounded-3xl bg-white p-5 ring-1 ring-black/[0.04] transition hover:-translate-y-0.5 hover:shadow-md"
+      className={cn(
+        "group flex items-center gap-4 rounded-3xl bg-linear-to-br to-white to-60% p-5 ring-1 ring-black/[0.04] transition hover:-translate-y-0.5 hover:shadow-md",
+        t.fond
+      )}
     >
-      <span
-        className={cn(
-          "grid size-14 shrink-0 place-items-center rounded-2xl",
-          alerte ? "bg-amber-50 text-amber-600" : "bg-brand-50 text-brand-700"
-        )}
-      >
+      <span className={cn("grid size-14 shrink-0 place-items-center rounded-2xl text-white", t.tuile)}>
         {icone}
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-sm text-muted">{label}</p>
         <p className="text-4xl font-semibold leading-tight tracking-tight text-ink">{valeur}</p>
-        <p className="truncate text-xs text-muted">{detail}</p>
+        <p className={cn("truncate text-xs font-medium", t.detail)}>{detail}</p>
       </div>
       <ChevronRight className="size-5 shrink-0 text-muted transition group-hover:translate-x-0.5" />
     </Link>
   );
 }
 
-export default function AccueilPage() {
-  const [d, setD] = useState<Donnees | null>(null);
-  const [marque, setMarque] = useState<Marque | null>(null);
-  const [prenom, setPrenom] = useState("");
-  const [erreur, setErreur] = useState(false);
-
-  const charger = useCallback(async () => {
-    try {
-      const [a, b] = await Promise.all([
-        fetch("/api/dashboard").then((r) => (r.ok ? r.json() : Promise.reject())),
-        fetch("/api/modele-carte?leger=1").then((r) => (r.ok ? r.json() : null)),
-      ]);
-      setD(a);
-      setMarque(b);
-      setErreur(false);
-    } catch {
-      setErreur(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    charger();
-    const id = setInterval(charger, 60000); // les chiffres se mettent à jour tout seuls
-    return () => clearInterval(id);
-  }, [charger]);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((p) => p && setPrenom(String(p.nom).split(" ")[0]))
-      .catch(() => {});
-  }, []);
-
-  if (erreur && !d) {
-    return (
-      <Card className="py-12 text-center">
-        <p className="text-sm text-muted">Impossible de charger les informations.</p>
-        <button onClick={charger} className="mt-4 rounded-full bg-brand-800 px-5 py-2.5 text-sm font-medium text-white">
-          Réessayer
-        </button>
-      </Card>
-    );
-  }
-
-  if (!d) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-52 rounded-[2rem]" />
-        <div className="grid gap-4 sm:grid-cols-3">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-[108px] rounded-3xl" />
-          ))}
-        </div>
-        <Skeleton className="h-72 rounded-3xl" />
-      </div>
-    );
-  }
-
+export default async function AccueilPage() {
+  const [d, modele, session] = await Promise.all([chargerAccueil(), chargerModele(), getSession()]);
   const { agents, cartes, controles, aTraiter, derniers } = d;
+
+  const prenom = session?.nom.split(" ")[0] ?? "";
+  const heure =
+    parseInt(
+      new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Africa/Bamako" }).format(new Date()),
+      10
+    ) % 24;
+  const salutation = heure < 18 ? "Bonjour" : "Bonsoir";
   const aRenouveler = cartes.expirees + cartes.bientot;
-  const salutation = new Date().getHours() < 18 ? "Bonjour" : "Bonsoir";
+  const aFaire = controles.refuses > 0 || aTraiter.length > 0;
 
   // Le message principal : toujours une seule chose à retenir
   const message =
     agents.total === 0
-      ? { titre: `Bienvenue${prenom ? `, ${prenom}` : ""} !`, texte: "Commençons par ajouter votre premier agent : sa carte sera prête en quelques secondes.", bouton: "Ajouter un agent" }
+      ? {
+          titre: `Bienvenue${prenom ? `, ${prenom}` : ""} !`,
+          texte: "Commençons par ajouter votre premier agent : sa carte sera prête en quelques secondes.",
+          bouton: "Ajouter un agent",
+        }
       : aRenouveler > 0
-      ? { titre: `${pluriel(aRenouveler, "carte à renouveler", "cartes à renouveler")}`, texte: "Renouvelez-les pour que vos agents restent reconnus lors des contrôles.", bouton: "Nouvel agent" }
+      ? {
+          titre: pluriel(aRenouveler, "carte à renouveler", "cartes à renouveler"),
+          texte: "Renouvelez-les pour que vos agents restent reconnus lors des contrôles.",
+          bouton: "Nouvel agent",
+        }
       : controles.refuses > 0
-      ? { titre: `${pluriel(controles.refuses, "contrôle refusé", "contrôles refusés")} aujourd’hui`, texte: "Quelqu’un a présenté une carte qui n’est pas valable.", bouton: "Nouvel agent" }
-      : { titre: "Tout est en ordre", texte: `${pluriel(agents.actifs, "agent sur le terrain", "agents sur le terrain")} · ${pluriel(controles.aujourdhui, "contrôle", "contrôles")} aujourd’hui`, bouton: "Nouvel agent" };
+      ? {
+          titre: `${pluriel(controles.refuses, "contrôle refusé", "contrôles refusés")} aujourd’hui`,
+          texte: "Quelqu’un a présenté une carte qui n’est pas valable.",
+          bouton: "Nouvel agent",
+        }
+      : {
+          titre: "Tout est en ordre",
+          texte: `${pluriel(agents.actifs, "agent sur le terrain", "agents sur le terrain")} · ${pluriel(controles.aujourdhui, "contrôle", "contrôles")} aujourd’hui`,
+          bouton: "Nouvel agent",
+        };
 
-  // Guide de démarrage (disparaît quand l'essentiel est fait)
-  const entrepriseFaite = !!marque && marque.nomOrganisation.trim() !== "" && marque.nomOrganisation !== "SecuriApp";
+  // Guide de démarrage : disparaît quand l'essentiel est fait
+  const entrepriseFaite = modele.nomOrganisation.trim() !== "" && modele.nomOrganisation !== "SecuriApp";
   const etapes = [
     { fait: entrepriseFaite, titre: "Donnez le nom de votre entreprise", texte: "Il apparaîtra sur toutes vos cartes.", href: "/admin/modele-carte", bouton: "Personnaliser" },
-    { fait: !!marque?.aLogo, titre: "Ajoutez votre logo (facultatif)", texte: "Il remplace le drapeau en haut de la carte.", href: "/admin/modele-carte", bouton: "Ajouter" },
+    { fait: !!modele.logoSrc, titre: "Ajoutez votre logo (facultatif)", texte: "Il remplace le drapeau en haut de la carte.", href: "/admin/modele-carte", bouton: "Ajouter" },
     { fait: agents.total > 0, titre: "Créez votre premier agent", texte: "Photo, nom et fonction : la carte se prépare toute seule.", href: "/admin/generateur", bouton: "Créer" },
   ];
-  const faites = etapes.filter((e) => e.fait).length;
   const afficherGuide = !(entrepriseFaite && agents.total > 0);
-  const aFaire = controles.refuses > 0 || aTraiter.length > 0;
 
   return (
     <div className="space-y-4">
@@ -189,6 +158,7 @@ export default function AccueilPage() {
       <section className="relative overflow-hidden rounded-[2rem] bg-linear-to-br from-brand-700 to-brand-900 p-6 text-white sm:p-8">
         <svg viewBox="0 0 800 260" preserveAspectRatio="xMidYMid slice" aria-hidden className="pointer-events-none absolute inset-0 size-full">
           <line x1="600" y1="-20" x2="500" y2="280" stroke="#55b98a" strokeWidth="46" strokeOpacity="0.55" />
+          <line x1="655" y1="-20" x2="560" y2="280" stroke="#fcd34d" strokeWidth="6" strokeOpacity="0.85" />
           <line x1="700" y1="-20" x2="610" y2="280" stroke="#fff" strokeWidth="12" strokeOpacity="0.14" />
           <line x1="-20" y1="60" x2="140" y2="280" stroke="#fff" strokeWidth="40" strokeOpacity="0.07" />
         </svg>
@@ -214,7 +184,7 @@ export default function AccueilPage() {
           <CardTitle
             title="Pour bien démarrer"
             subtitle="Quelques minutes suffisent"
-            right={<Pill tone="green">{faites}/3</Pill>}
+            right={<Pill tone="green">{etapes.filter((e) => e.fait).length}/3</Pill>}
           />
           <ul className="divide-y divide-line/70">
             {etapes.map((e) => (
@@ -222,7 +192,7 @@ export default function AccueilPage() {
                 <span
                   className={cn(
                     "grid size-9 shrink-0 place-items-center rounded-full",
-                    e.fait ? "bg-brand-700 text-white" : "bg-black/[0.05] text-muted"
+                    e.fait ? "bg-brand-600 text-white" : "bg-sky-50 text-sky-600"
                   )}
                 >
                   {e.fait ? <Check className="size-5" /> : <Circle className="size-4" />}
@@ -247,6 +217,7 @@ export default function AccueilPage() {
         <div className="grid gap-4 sm:grid-cols-3">
           <Compteur
             href="/admin/agents"
+            teinte="vert"
             icone={<Users className="size-7" />}
             label="Agents sur le terrain"
             valeur={agents.actifs}
@@ -254,20 +225,29 @@ export default function AccueilPage() {
           />
           <Compteur
             href="/admin/verifications"
+            teinte="bleu"
             icone={<ScanLine className="size-7" />}
             label="Contrôles aujourd’hui"
             valeur={controles.aujourdhui}
             detail={
-              controles.aujourdhui === 0 ? "Aucun pour l’instant" : controles.refuses > 0 ? pluriel(controles.refuses, "refusé", "refusés") : "Tous acceptés"
+              controles.aujourdhui === 0
+                ? "Aucun pour l’instant"
+                : controles.refuses > 0
+                ? pluriel(controles.refuses, "refusé", "refusés")
+                : "Tous acceptés"
             }
           />
           <Compteur
             href="/admin/agents"
+            teinte={aRenouveler > 0 ? "ambre" : "vert"}
             icone={<CalendarClock className="size-7" />}
             label="Cartes à renouveler"
             valeur={aRenouveler}
-            alerte={aRenouveler > 0}
-            detail={aRenouveler === 0 ? "Rien à faire" : `${cartes.expirees} expirée${cartes.expirees > 1 ? "s" : ""} · ${cartes.bientot} bientôt`}
+            detail={
+              aRenouveler === 0
+                ? "Rien à faire"
+                : `${pluriel(cartes.expirees, "expirée", "expirées")} · ${cartes.bientot} bientôt`
+            }
           />
         </div>
       )}
@@ -281,8 +261,8 @@ export default function AccueilPage() {
               <ul className="divide-y divide-line/70">
                 {controles.refuses > 0 && (
                   <li>
-                    <Link href="/admin/verifications" className="group flex items-center gap-3 rounded-2xl px-2 py-3 transition hover:bg-amber-50/60">
-                      <span className="grid size-11 shrink-0 place-items-center rounded-full bg-amber-50 text-amber-600">
+                    <Link href="/admin/alertes" className="group flex items-center gap-3 rounded-2xl px-2 py-3 transition hover:bg-amber-50/60">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-600">
                         <TriangleAlert className="size-5" />
                       </span>
                       <div className="min-w-0 flex-1">
@@ -291,7 +271,7 @@ export default function AccueilPage() {
                         </p>
                         <p className="text-xs text-muted">Une carte présentée n’était pas valable.</p>
                       </div>
-                      <span className="shrink-0 rounded-full bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700">Voir</span>
+                      <span className="shrink-0 rounded-full bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-800">Voir</span>
                     </Link>
                   </li>
                 )}
@@ -305,9 +285,9 @@ export default function AccueilPage() {
                           <p className="truncate text-sm font-semibold text-ink">
                             {c.prenom} {c.nom}
                           </p>
-                          <p className={cn("truncate text-xs", ex.rouge ? "text-rose-600" : "text-amber-600")}>{ex.texte}</p>
+                          <p className={cn("truncate text-xs font-medium", ex.rouge ? "text-rose-600" : "text-amber-600")}>{ex.texte}</p>
                         </div>
-                        <span className="shrink-0 rounded-full bg-brand-50 px-4 py-2 text-sm font-medium text-brand-800">Renouveler</span>
+                        <span className="shrink-0 rounded-full bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-800">Renouveler</span>
                       </Link>
                     </li>
                   );
@@ -332,28 +312,25 @@ export default function AccueilPage() {
               </p>
             ) : (
               <ul className="divide-y divide-line/70">
-                {derniers.map((l) => {
-                  const accepte = l.resultat === "valide";
-                  return (
-                    <li key={l.id} className="flex items-center gap-3 py-3">
-                      <span
-                        className={cn(
-                          "grid size-10 shrink-0 place-items-center rounded-full",
-                          accepte ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
-                        )}
-                      >
-                        {accepte ? <ShieldCheck className="size-5" /> : <ShieldX className="size-5" />}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-ink">
-                          {l.prenom ? `${l.prenom} ${l.nom}` : "Carte inconnue"}
-                        </p>
-                        <p className="text-xs text-muted">{depuis(l.scannedAt)}</p>
-                      </div>
-                      <Pill tone={accepte ? "green" : "rose"}>{accepte ? "Acceptée" : "Refusée"}</Pill>
-                    </li>
-                  );
-                })}
+                {derniers.map((l) => (
+                  <li key={l.id} className="flex items-center gap-3 py-3">
+                    <span
+                      className={cn(
+                        "grid size-10 shrink-0 place-items-center rounded-full",
+                        l.accepte ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"
+                      )}
+                    >
+                      {l.accepte ? <ShieldCheck className="size-5" /> : <ShieldX className="size-5" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {l.prenom ? `${l.prenom} ${l.nom}` : "Carte inconnue"}
+                      </p>
+                      <p className="text-xs text-muted">{depuis(l.scannedAt)}</p>
+                    </div>
+                    <Pill tone={l.accepte ? "green" : "rose"}>{l.accepte ? "Acceptée" : "Refusée"}</Pill>
+                  </li>
+                ))}
               </ul>
             )}
           </Card>

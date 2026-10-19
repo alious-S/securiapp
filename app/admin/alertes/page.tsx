@@ -1,62 +1,40 @@
-"use client";
-
-import { useEffect, useState } from "react";
+/**
+ * ALERTES : ce qui paraît suspect sur les dernières 24 heures.
+ * Chaque alerte dit en une phrase ce qui s'est passé et ce qu'il faut en penser.
+ */
 import Link from "next/link";
 import { ChevronRight, ShieldCheck, Siren, TriangleAlert, Zap } from "lucide-react";
-import {
-  Card,
-  EmptyState,
-  PageHeader,
-  Pill,
-  Skeleton,
-  cn,
-  etatCarte,
-  formatDate,
-  formatTime,
-} from "@/components/admin/ui";
+import { Avatar, Card, EmptyState, PageHeader, Pill, cn, formatDate, formatTime } from "@/components/admin/ui";
+import { chargerAlertes } from "@/lib/donnees";
 
-type Carte = {
-  id: string;
-  statut: string;
-  expireAt: string | null;
-  agent: { nom: string; prenom: string; matricule: string };
-};
-type LogInvalide = { id: string; scannedAt: string; card: Carte };
-type CarteFrequence = { count: number; card: Carte };
-type AlertesData = {
-  cartesInvalidesUtilisees: LogInvalide[];
-  cartesFrequenceAnormale: CarteFrequence[];
-  tentativesInconnues: number;
-};
+export const dynamic = "force-dynamic";
 
-const accents = {
-  rose: "bg-rose-50 text-rose-600",
-  amber: "bg-amber-50 text-amber-600",
-  yellow: "bg-yellow-50 text-yellow-600",
+const ACCENTS = {
+  rose: "bg-rose-100 text-rose-600",
+  amber: "bg-amber-100 text-amber-600",
+  sky: "bg-sky-100 text-sky-600",
 };
 
 function Section({
-  tone,
-  icon,
-  title,
-  subtitle,
+  couleur,
+  icone,
+  titre,
+  explication,
   children,
 }: {
-  tone: keyof typeof accents;
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
+  couleur: keyof typeof ACCENTS;
+  icone: React.ReactNode;
+  titre: string;
+  explication: string;
   children?: React.ReactNode;
 }) {
   return (
     <Card>
       <div className="flex items-start gap-3">
-        <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl", accents[tone])}>
-          {icon}
-        </span>
+        <span className={cn("grid size-11 shrink-0 place-items-center rounded-2xl", ACCENTS[couleur])}>{icone}</span>
         <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
-          <p className="mt-0.5 text-xs text-muted">{subtitle}</p>
+          <h2 className="text-[15px] font-semibold text-ink">{titre}</h2>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted">{explication}</p>
         </div>
       </div>
       {children && <div className="mt-4">{children}</div>}
@@ -64,146 +42,92 @@ function Section({
   );
 }
 
-export default function AlertesPage() {
-  const [data, setData] = useState<AlertesData | null>(null);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/alertes")
-      .then((r) => {
-        if (!r.ok) throw new Error();
-        return r.json();
-      })
-      .then(setData)
-      .catch(() => setError(true));
-  }, []);
-
-  const header = (
-    <PageHeader
-      title="Alertes"
-      subtitle="Activités suspectes détectées sur les cartes."
-    />
-  );
-
-  if (error) {
-    return (
-      <>
-        {header}
-        <Card className="py-10 text-center text-sm text-muted">
-          Impossible de charger les alertes.
-        </Card>
-      </>
-    );
-  }
-
-  if (!data) {
-    return (
-      <>
-        {header}
-        <Skeleton className="h-40 rounded-3xl" />
-      </>
-    );
-  }
-
-  const total =
-    data.cartesInvalidesUtilisees.length +
-    data.cartesFrequenceAnormale.length +
-    (data.tentativesInconnues > 10 ? 1 : 0);
-
-  if (total === 0) {
-    return (
-      <>
-        {header}
-        <Card>
-          <EmptyState
-            icon={<ShieldCheck className="size-6" />}
-            title="Aucune activité suspecte"
-            text="Tout est calme : aucune alerte sur les dernières 24 heures."
-          />
-        </Card>
-      </>
-    );
-  }
+export default async function AlertesPage() {
+  const { bloquees, frequentes, inconnues } = await chargerAlertes();
+  const total = bloquees.length + frequentes.length + (inconnues > 10 ? 1 : 0);
 
   return (
     <>
-      {header}
-      <div className="space-y-4">
-        {data.cartesInvalidesUtilisees.length > 0 && (
-          <Section
-            tone="rose"
-            icon={<Siren className="size-5" />}
-            title="Cartes bloquées présentées au contrôle"
-            subtitle="Cartes révoquées ou désactivées scannées ces dernières 24 heures"
-          >
-            <ul className="divide-y divide-line/70">
-              {data.cartesInvalidesUtilisees.map((l) => {
-                const etat = etatCarte(l.card.statut, l.card.expireAt);
-                return (
+      <PageHeader
+        title="Alertes"
+        subtitle={total === 0 ? "Rien de suspect sur les dernières 24 heures." : `${total} point${total > 1 ? "s" : ""} à surveiller (dernières 24 heures)`}
+      />
+
+      {total === 0 ? (
+        <Card>
+          <EmptyState
+            icon={<ShieldCheck className="size-6" />}
+            title="Tout est calme"
+            text="Aucune carte retirée n’a été présentée et aucune activité inhabituelle n’a été détectée."
+          />
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {bloquees.length > 0 && (
+            <Section
+              couleur="rose"
+              icone={<Siren className="size-5" />}
+              titre="Une carte retirée a été présentée"
+              explication="Quelqu’un a scanné une carte retirée ou en pause. Elle a été refusée. C’est peut-être une carte perdue ou volée."
+            >
+              <ul className="divide-y divide-line/70">
+                {bloquees.map((l) => (
                   <li key={l.id}>
-                    <Link
-                      href={`/admin/cartes/${l.card.id}`}
-                      className="group flex items-center gap-3 py-3"
-                    >
+                    <Link href={`/admin/cartes/${l.card.id}`} className="group flex items-center gap-3 rounded-2xl px-2 py-3 transition hover:bg-rose-50/50">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-ink">
                           {l.card.agent.prenom} {l.card.agent.nom}
                         </p>
                         <p className="truncate text-xs text-muted">
-                          {l.card.agent.matricule} · {formatDate(l.scannedAt)} à{" "}
-                          {formatTime(l.scannedAt)}
+                          {l.card.agent.matricule} · {formatDate(l.scannedAt)} à {formatTime(l.scannedAt)}
                         </p>
                       </div>
-                      <Pill tone={etat.tone}>{etat.label}</Pill>
+                      <Pill tone="rose">{l.card.statut === "revoque" ? "Carte retirée" : "En pause"}</Pill>
                       <ChevronRight className="size-4 shrink-0 text-muted transition group-hover:translate-x-0.5" />
                     </Link>
                   </li>
-                );
-              })}
-            </ul>
-          </Section>
-        )}
+                ))}
+              </ul>
+            </Section>
+          )}
 
-        {data.cartesFrequenceAnormale.length > 0 && (
-          <Section
-            tone="amber"
-            icon={<Zap className="size-5" />}
-            title="Fréquence de scan anormale"
-            subtitle="Plus de 5 scans en une heure : carte peut-être copiée"
-          >
-            <ul className="divide-y divide-line/70">
-              {data.cartesFrequenceAnormale.map((c) => (
-                <li key={c.card.id}>
-                  <Link
-                    href={`/admin/cartes/${c.card.id}`}
-                    className="group flex items-center gap-3 py-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-ink">
-                        {c.card.agent.prenom} {c.card.agent.nom}
-                      </p>
-                      <p className="truncate text-xs text-muted">
-                        {c.card.agent.matricule}
-                      </p>
-                    </div>
-                    <Pill tone="amber">{c.count} scans / 1 h</Pill>
-                    <ChevronRight className="size-4 shrink-0 text-muted transition group-hover:translate-x-0.5" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Section>
-        )}
+          {frequentes.length > 0 && (
+            <Section
+              couleur="amber"
+              icone={<Zap className="size-5" />}
+              titre="Une carte est scannée très souvent"
+              explication="Plus de 5 contrôles en une heure pour la même carte. Elle a peut-être été photocopiée."
+            >
+              <ul className="divide-y divide-line/70">
+                {frequentes.map((f) => (
+                  <li key={f.card.id}>
+                    <Link href={`/admin/cartes/${f.card.id}`} className="group flex items-center gap-3 rounded-2xl px-2 py-3 transition hover:bg-amber-50/60">
+                      <Avatar prenom={f.card.agent.prenom} nom={f.card.agent.nom} className="size-10 text-xs" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-ink">
+                          {f.card.agent.prenom} {f.card.agent.nom}
+                        </p>
+                        <p className="truncate text-xs text-muted">{f.card.agent.matricule}</p>
+                      </div>
+                      <Pill tone="amber">{f.nombre} contrôles en 1 h</Pill>
+                      <ChevronRight className="size-4 shrink-0 text-muted transition group-hover:translate-x-0.5" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
 
-        {data.tentativesInconnues > 10 && (
-          <Section
-            tone="yellow"
-            icon={<TriangleAlert className="size-5" />}
-            title={`${data.tentativesInconnues} tentatives sur des cartes inexistantes`}
-            subtitle="Sur 24 heures : possible tentative de deviner des jetons au hasard"
-          />
-        )}
-      </div>
+          {inconnues > 10 && (
+            <Section
+              couleur="sky"
+              icone={<TriangleAlert className="size-5" />}
+              titre={`${inconnues} cartes inconnues scannées`}
+              explication="Des codes qui n’existent pas ont été présentés. Quelqu’un essaie peut-être de fabriquer de fausses cartes."
+            />
+          )}
+        </div>
+      )}
     </>
   );
 }

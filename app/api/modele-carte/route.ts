@@ -1,30 +1,22 @@
 /**
  * MODÈLE DE CARTE : lecture (GET) et enregistrement (PUT)
- * GET ?leger=1 : seulement le nom et la présence d'un logo (pour le menu).
+ * Si la table n'existe pas encore en base, la lecture renvoie le modèle d'origine
+ * et l'enregistrement explique quoi faire.
  */
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { chargerModele } from "@/lib/donnees";
 import { lireModele, logoValide } from "@/lib/modele-carte";
 
-export async function GET(request: NextRequest) {
-  try {
-    const leger = new URL(request.url).searchParams.get("leger") === "1";
-    const [settings, modele] = await Promise.all([
-      prisma.settings.findUnique({ where: { id: "main" } }),
-      prisma.modeleCarte.findUnique({ where: { id: "main" } }),
-    ]);
-
-    const base = {
-      nomOrganisation: settings?.nomOrganisation ?? "SecuriApp",
-      aLogo: !!modele?.logoUrl,
-      version: modele?.updatedAt ? new Date(modele.updatedAt).getTime() : 0,
-    };
-    return NextResponse.json(leger ? base : { ...base, config: lireModele(modele?.config) });
-  } catch (erreur) {
-    console.error(erreur);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
-  }
+export async function GET() {
+  const m = await chargerModele();
+  return NextResponse.json({
+    nomOrganisation: m.nomOrganisation,
+    aLogo: !!m.logoSrc,
+    version: m.version,
+    config: m.config,
+  });
 }
 
 export async function PUT(request: NextRequest) {
@@ -36,9 +28,7 @@ export async function PUT(request: NextRequest) {
     const b = corps as Record<string, unknown>;
 
     const nom =
-      typeof b.nomOrganisation === "string"
-        ? b.nomOrganisation.trim().replace(/\s+/g, " ")
-        : "";
+      typeof b.nomOrganisation === "string" ? b.nomOrganisation.trim().replace(/\s+/g, " ") : "";
     if (!nom || nom.length > 80) {
       return NextResponse.json(
         { error: "Le nom de l'entreprise est obligatoire (80 caractères maximum)." },
@@ -58,7 +48,6 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // lireModele nettoie tout : une valeur incorrecte devient la valeur par défaut
     const config = lireModele(b.config) as unknown as Prisma.InputJsonObject;
 
     const [, modele] = await prisma.$transaction([
@@ -77,6 +66,15 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ ok: true, version: new Date(modele.updatedAt).getTime() });
   } catch (erreur) {
     console.error(erreur);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    const message = String(erreur instanceof Error ? erreur.message : erreur);
+    const baseAJour = !/ModeleCarte|modeleCarte|P2021|does not exist/i.test(message);
+    return NextResponse.json(
+      {
+        error: baseAJour
+          ? "Erreur serveur. Réessayez dans un instant."
+          : "La base de données n'est pas à jour. Lancez « npx prisma db push » puis réessayez.",
+      },
+      { status: 500 }
+    );
   }
 }
